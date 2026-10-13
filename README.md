@@ -50,6 +50,6 @@ The first successful sync is a baseline and records no changes. Later syncs reco
 
 ## Deploy
 
-Vercel builds the client and the API from this repo. The API function reads the public sheet. SQLite on Vercel lives in `/tmp` and resets when the function cold-starts, so the 45 second loop and the change history exist only for that instance.
+Vercel builds the client from this repo. The API file `api/[[...path]].js` is produced by `npm run build:api` and committed, because Vercel looks for that function before the build starts. The function reads the public sheet. SQLite on Vercel lives in `/tmp` and resets when the function cold-starts, so the 45 second loop and the change history exist only for that instance.
 
 Production deploys come from the `main` branch on GitHub.
