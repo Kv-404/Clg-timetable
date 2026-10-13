@@ -172,7 +172,7 @@ export function Dashboard({
         </TabsList>
       </header>
 
-      <main id="timetable" className="px-4 py-6 sm:px-6">
+      <main id="timetable" className="px-4 py-4 sm:px-6 sm:py-6">
         <h1 className="sr-only">{cohortName(selected)} timetable</h1>
         <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -202,7 +202,7 @@ export function Dashboard({
             onChange={(event) => patch({ query: event.target.value })}
             placeholder="Search subject, faculty, or room"
             aria-label="Search the timetable"
-            className="max-w-xs"
+            className="max-w-none sm:max-w-xs"
           />
           {notifications.supported && notifications.permission !== "granted" && (
             <button type="button" className="text-sm text-muted-foreground hover:text-foreground sm:hidden" onClick={() => void notifications.enable()}>
@@ -282,10 +282,9 @@ function CalendarMenu({ division }: { division: string }) {
         aria-expanded={open}
         aria-label={`Add ${cohortName(division)}'s week to a calendar`}
         onClick={() => setOpen((current) => !current)}
-        className="inline-flex h-9 items-center gap-2 rounded-md border border-border px-2.5 text-sm hover:bg-muted sm:px-3"
+        className="inline-flex size-9 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground sm:h-9 sm:w-auto sm:gap-2 sm:border sm:border-border sm:px-3 sm:text-sm sm:text-foreground"
       >
         <CalendarPlus className="size-4" aria-hidden="true" />
-        <span className="sm:hidden">Add</span>
         <span className="hidden sm:inline">Add week</span>
       </button>
       {open && (

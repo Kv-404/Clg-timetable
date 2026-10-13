@@ -30,11 +30,11 @@ export function TodayView({
     <div>
       <h2 className="text-muted-foreground font-mono text-[11px] font-medium tracking-[0.22em] uppercase">{formatLongDate(date)}</h2>
       {note && <p className="mt-1 text-sm text-muted-foreground">{note}</p>}
-      <ol className="mt-4 grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 border-t border-border">
+      <ol className="mt-4 grid grid-cols-1 gap-x-4 border-t border-border sm:grid-cols-[max-content_minmax(0,1fr)]">
         {timeline(visible).map((item, index) => {
           if (item.kind === "break") {
             return (
-              <li key={item.key} className="rise-row col-span-2 border-b border-border py-3 text-sm text-muted-foreground" style={{ animationDelay: `${Math.min(index, 12) * 35}ms` }}>
+              <li key={item.key} className="rise-row col-span-1 border-b border-border py-3 text-sm text-muted-foreground sm:col-span-2" style={{ animationDelay: `${Math.min(index, 12) * 35}ms` }}>
                 {item.lecture.subject} · {item.lecture.startLabel} – {item.lecture.endLabel}
               </li>
             );
@@ -44,10 +44,10 @@ export function TodayView({
           return (
             <li
               key={item.lecture.id}
-              className="rise-row col-span-2 grid grid-cols-subgrid items-start border-b border-border py-2.5"
+              className="rise-row col-span-1 grid grid-cols-1 items-start gap-y-1 border-b border-border py-2.5 sm:col-span-2 sm:grid-cols-subgrid sm:gap-y-0"
               style={{ animationDelay: `${Math.min(index, 12) * 35}ms` }}
             >
-              <p className={`flex items-baseline gap-1 pt-1.5 font-mono text-xs whitespace-nowrap ${live ? "text-foreground" : "text-muted-foreground"}`}>
+              <p className={`flex items-baseline gap-1 font-mono text-xs whitespace-nowrap sm:pt-1.5 ${live ? "text-foreground" : "text-muted-foreground"}`}>
                 <ClockLabel label={item.lecture.startLabel} />
                 <span aria-hidden="true">–</span>
                 <ClockLabel label={item.lecture.endLabel} />

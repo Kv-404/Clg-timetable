@@ -2,6 +2,7 @@ import type { PublicLecture } from "@shared/types";
 import { cohortName } from "@shared/cohort";
 import { useEffect, useRef } from "react";
 import { StatusBadge, badgeText } from "@/components/StatusBadge";
+import { TodayView } from "@/components/TodayView";
 import { useColors } from "@/lib/colorState";
 import { ClockLabel } from "@/components/ClockLabel";
 import { formatCalendarDate } from "@/lib/time";
@@ -55,7 +56,15 @@ export function WeeklyView({
     .filter((minute) => minute >= 0)
     .sort((a, b) => a - b);
   return (
-    <div ref={scroller} className="rise overflow-x-auto border-y border-border">
+    <>
+    <div className="space-y-8 sm:hidden">
+      {days.map((date) => (
+        <div key={date}>
+          <TodayView lectures={forDay(date)} today={today} minutes={minutes} showDivision={showDivision} />
+        </div>
+      ))}
+    </div>
+    <div ref={scroller} className="rise hidden overflow-x-auto border-y border-border sm:block">
       <table className="w-full min-w-[760px] border-collapse text-left text-sm">
         <thead>
           <tr className="border-b border-border">
@@ -155,6 +164,7 @@ export function WeeklyView({
         </tbody>
       </table>
     </div>
+    </>
   );
 }
 
