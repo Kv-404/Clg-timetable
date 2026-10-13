@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Timetable</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23000'/%3E%3Crect x='8' y='10' width='16' height='14' rx='2' fill='none' stroke='%23fff' stroke-width='1.6'/%3E%3Cpath d='M8 15h16M12 8v4M20 8v4' stroke='%23fff' stroke-width='1.6' fill='none'/%3E%3C/svg%3E" />
+    <link rel="preconnect" href="https://api.fontshare.com" />
+    <link rel="preconnect" href="https://cdn.fontshare.com" crossorigin />
+    <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f%5B%5D=satoshi@variable&display=swap" />
+    <meta
+      name="description"
+      content="Weekly class timetable. Reads the official Google Sheet."
+    />
+    <script>
+      try {
+        let theme = localStorage.getItem("timetable-theme") || (localStorage.getItem("theme") === "light" ? "light" : "dark");
+        if (theme === "calendar") theme = "light";
+        const light = theme === "light";
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.dataset.colors = localStorage.getItem("timetable-colors") === "0" ? "off" : "on";
+        document.documentElement.classList.toggle("dark", !light);
+        document.documentElement.style.colorScheme = light ? "light" : "dark";
+      } catch {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

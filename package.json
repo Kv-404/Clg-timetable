@@ -1,0 +1,23 @@
+{
+  "name": "itm-timetable",
+  "private": true,
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,client -c blue,green \"npm run dev -w server\" \"npm run dev -w client\"",
+    "start": "npm run start -w server",
+    "build": "npm run build -w client && npm run build:api",
+    "build:api": "esbuild server/src/vercel.ts --bundle --platform=node --format=cjs --outfile=api/[[...path]].js --packages=external --footer:js=\"module.exports = module.exports.default || module.exports;\"",
+    "test": "npm run test -w server",
+    "typecheck": "npm run typecheck -w server && npm run typecheck -w client"
+  },
+  "engines": {
+    "node": "24.x"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "esbuild": "^0.28.0"
+  }
+}
