@@ -2,7 +2,7 @@ import type { PublicLecture } from "@shared/types";
 import { cohortName } from "@shared/cohort";
 import { useEffect, useRef } from "react";
 import { StatusBadge, badgeText } from "@/components/StatusBadge";
-import { calendarTone } from "@/lib/calendarTone";
+import { useColors } from "@/lib/colorState";
 import { ClockLabel } from "@/components/ClockLabel";
 import { formatCalendarDate } from "@/lib/time";
 import { isFullOff, slotPhase } from "@/lib/view";
@@ -182,14 +182,14 @@ function isLive(lecture: PublicLecture, today: string, minutes: number) {
 }
 
 function Cell({ lecture, showDivision, now }: { lecture: PublicLecture; showDivision: boolean; now: boolean }) {
+  const { classNameFor } = useColors();
   const marked = lecture.displayStatus === "cancelled" || lecture.displayStatus === "changed" || lecture.displayStatus === "rescheduled";
   const previousTime = lecture.previous?.startLabel && lecture.previous.startLabel !== lecture.startLabel;
   return (
-    <div className={`${calendarTone(lecture.subject, lecture.displayStatus)} ${now ? "is-now" : ""}`} data-testid="lecture-card">
-      {(now || marked) && (
+    <div className={`${classNameFor(lecture.subject, lecture.displayStatus)} ${now ? "is-now" : ""}`} data-testid="lecture-card" data-live={now ? "true" : undefined}>
+      {marked && (
         <div className="mb-1 flex flex-wrap items-center gap-1.5">
-          {now && <span className="cal-now">Now</span>}
-          {marked && <StatusBadge status={lecture.displayStatus} label={badgeText(lecture.displayStatus, lecture.subject)} />}
+          <StatusBadge status={lecture.displayStatus} label={badgeText(lecture.displayStatus, lecture.subject)} />
         </div>
       )}
       <p className={`font-medium ${lecture.displayStatus === "cancelled" ? "text-danger line-through" : ""}`}>{lecture.subject}</p>

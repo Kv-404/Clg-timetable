@@ -24,7 +24,7 @@ export function Setup({
   const [step, setStep] = useState(0);
   const [picked, setPicked] = useState(divisions.includes(cohort) ? cohort : "");
   const titles = ["Which cohort are you in?", "Pick a theme"];
-  const notes = ["This stays on this browser.", "Week is the grid. One day is a compact list. You can change the theme later."];
+  const notes = ["This stays on this browser.", "Week is the grid. One day is a compact list. You can change the theme and class colours later."];
 
   function finish() {
     if (!picked) return;

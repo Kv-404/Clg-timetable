@@ -3,7 +3,7 @@ import { cohortName } from "@shared/cohort";
 import { StatusBadge, badgeText } from "@/components/StatusBadge";
 import { ClockLabel } from "@/components/ClockLabel";
 import { formatLongDate } from "@/lib/time";
-import { calendarTone } from "@/lib/calendarTone";
+import { useColors } from "@/lib/colorState";
 import { collapseFullOffDays, slotPhase } from "@/lib/view";
 
 export function TodayView({
@@ -19,6 +19,7 @@ export function TodayView({
   showDivision: boolean;
   note?: string;
 }) {
+  const { classNameFor } = useColors();
   const visible = collapseFullOffDays(lectures);
   const dated = visible.filter((lecture) => lecture.date);
   const date = dated[0]?.date ?? today;
@@ -46,14 +47,17 @@ export function TodayView({
               className="rise-row col-span-2 grid grid-cols-subgrid items-start border-b border-border py-2.5"
               style={{ animationDelay: `${Math.min(index, 12) * 35}ms` }}
             >
-              <p className={`flex items-baseline gap-1 pt-1.5 font-mono text-xs whitespace-nowrap ${live ? "font-bold text-danger" : "text-muted-foreground"}`}>
+              <p className={`flex items-baseline gap-1 pt-1.5 font-mono text-xs whitespace-nowrap ${live ? "text-foreground" : "text-muted-foreground"}`}>
                 <ClockLabel label={item.lecture.startLabel} />
                 <span aria-hidden="true">–</span>
                 <ClockLabel label={item.lecture.endLabel} />
               </p>
-              <div data-testid="lecture-card" className={`min-w-0 ${calendarTone(item.lecture.subject, item.lecture.displayStatus)} ${live ? "is-now" : ""}`}>
+              <div
+                data-testid="lecture-card"
+                data-live={live ? "true" : undefined}
+                className={`min-w-0 ${classNameFor(item.lecture.subject, item.lecture.displayStatus)} ${live ? "is-now" : ""}`}
+              >
                 <div className="flex flex-wrap items-center gap-2">
-                  {live && <span className="cal-now">Now</span>}
                   <p className={`font-medium tracking-tight ${item.lecture.displayStatus === "cancelled" ? "text-danger line-through" : ""}`}>{item.lecture.subject}</p>
                   {item.lecture.displayStatus !== "scheduled" && (
                     <StatusBadge status={item.lecture.displayStatus} label={badgeText(item.lecture.displayStatus, item.lecture.subject)} />

@@ -1,7 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Dashboard } from "@/components/Dashboard";
+import { LoadingScreen } from "@/components/LoadingScreen";
 import { fetchBootstrap, refreshBootstrap } from "@/lib/api";
+import { ColorProvider } from "@/lib/colorState";
 import { applyColors, applyTheme, readStoredColors, readStoredTheme, type ThemeId } from "@/lib/prefs";
 
 function usePreferences() {
@@ -50,12 +52,7 @@ export function App() {
   });
 
   if (query.isPending && !query.data) {
-    return (
-      <div className="mx-auto max-w-3xl px-4 py-16">
-        <h1 className="text-xl font-medium">Loading the timetable</h1>
-        <p className="mt-2 text-sm text-muted-foreground">Reading the Google Sheet.</p>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   if (!query.data) {
@@ -71,15 +68,17 @@ export function App() {
   }
 
   return (
-    <Dashboard
-      data={query.data}
-      now={now}
-      pending={refresh.isPending}
-      onRefresh={() => refresh.mutate()}
-      theme={preferences.theme}
-      colors={preferences.colors}
-      onTheme={preferences.chooseTheme}
-      onColors={preferences.chooseColors}
-    />
+    <ColorProvider theme={preferences.theme}>
+      <Dashboard
+        data={query.data}
+        now={now}
+        pending={refresh.isPending}
+        onRefresh={() => refresh.mutate()}
+        theme={preferences.theme}
+        colors={preferences.colors}
+        onTheme={preferences.chooseTheme}
+        onColors={preferences.chooseColors}
+      />
+    </ColorProvider>
   );
 }

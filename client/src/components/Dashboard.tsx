@@ -12,7 +12,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useChangeNotifications } from "@/hooks/useNotifications";
 import { appleWeekCalendarUrl, calendarFeedUrl, googleWeekCalendarUrl, outlookWeekCalendarUrl } from "@/lib/calendar";
 import { readSetup, readStoredCohort, saveCohort, themes, type ThemeId } from "@/lib/prefs";
+import { ColorEditor } from "@/components/ColorEditor";
 import { ColorSwitch } from "@/components/ColorSwitch";
+import { useColors } from "@/lib/colorState";
 import { formatClock, zonedNow } from "@/lib/time";
 import { applyFilters, collapseFullOffDays, countStatuses, defaultFilters, slotPhase, unique, type Filters } from "@/lib/view";
 
@@ -122,7 +124,7 @@ export function Dashboard({
             <IconButton label={pending ? "Refreshing" : "Refresh"} onClick={onRefresh} disabled={pending} testId="refresh-button">
               <RefreshCw className={`size-4 ${pending ? "animate-spin" : ""}`} aria-hidden="true" />
             </IconButton>
-            <AppearanceMenu theme={theme} colors={colors} onTheme={onTheme} onColors={onColors} />
+            <AppearanceMenu theme={theme} colors={colors} subjects={subjects} onTheme={onTheme} onColors={onColors} />
             <a
               href={data.spreadsheetUrl}
               target="_blank"
@@ -326,11 +328,13 @@ function CalendarMenu({ division }: { division: string }) {
 function AppearanceMenu({
   theme,
   colors,
+  subjects,
   onTheme,
   onColors,
 }: {
   theme: ThemeId;
   colors: boolean;
+  subjects: string[];
   onTheme: (theme: ThemeId) => void;
   onColors: (on: boolean) => void;
 }) {
@@ -357,7 +361,7 @@ function AppearanceMenu({
         <Palette className="size-4" aria-hidden="true" />
       </IconButton>
       {open && (
-        <div role="menu" aria-label="Theme and colours" className="menu-pop absolute top-full right-0 z-40 mt-1 w-72 rounded-lg border border-border bg-background p-3 shadow-sm">
+        <div role="menu" aria-label="Theme and colours" className="menu-pop absolute top-full right-0 z-40 mt-1 max-h-[min(32rem,calc(100dvh-5rem))] w-[min(22rem,calc(100vw-1.5rem))] overflow-y-auto rounded-lg border border-border bg-background p-3 shadow-sm">
           <p className="text-muted-foreground font-mono text-[11px] tracking-[0.22em] uppercase">Theme</p>
           <div className="mt-2 grid grid-cols-3 gap-1">
             {themes.map((item) => (
@@ -373,10 +377,14 @@ function AppearanceMenu({
               </button>
             ))}
           </div>
-          <p className="text-muted-foreground mt-3 font-mono text-[11px] tracking-[0.22em] uppercase">Colours</p>
-          <div className="mt-2">
+          <div className="mt-3">
             <ColorSwitch on={colors} onChange={onColors} />
           </div>
+          {colors && (
+            <div className="mt-3">
+              <ColorEditor theme={theme} subjects={subjects} />
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -482,11 +490,16 @@ function DayChip({ selected, today, children, onClick }: { selected: boolean; to
 }
 
 function NowLine({ lecture, today, minutes }: { lecture: PublicLecture; today: string; minutes: number }) {
+  const { slotFor } = useColors();
   const live = slotPhase(lecture, today, minutes) === "now";
+  const slot = slotFor(lecture.subject, lecture.displayStatus);
   return (
     <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-      {live ? <span className="cal-now">Now</span> : <span className="text-muted-foreground">Next</span>}
-      <span className="font-medium tracking-tight">{lecture.subject}</span>
+      <span className={live ? "font-medium" : "text-muted-foreground"}>{live ? "Now" : "Next"}</span>
+      <span className={`inline-flex items-center gap-1.5 font-medium tracking-tight cal-${slot}`}>
+        {live && <span aria-hidden="true" className="inline-block size-2 shrink-0 rounded-full" style={{ background: "var(--cal)" }} />}
+        {lecture.subject}
+      </span>
       <span className="text-muted-foreground">
         {lecture.startLabel}
         {lecture.room ? ` · ${lecture.room}` : ""}

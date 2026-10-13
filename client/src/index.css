@@ -150,7 +150,7 @@
   --tone-basil: #3d6b52; --ink-basil: #f2faf4;
   --tone-blueberry: #46587a; --ink-blueberry: #f3f6fc;
   --tone-grape: #5c4d78; --ink-grape: #f6f2fb;
-  --tone-flamingo: #7a4e56; --ink-flamingo: #fdf2f4;
+  --tone-flamingo: #94302c; --ink-flamingo: #fff6f6;
   --tone-tangerine: #6e5a38; --ink-tangerine: #fbf6ec;
   --tone-banana: #556640; --ink-banana: #f6faf0;
   --tone-sage: #2f6464; --ink-sage: #f1fbfb;
@@ -273,38 +273,26 @@
   box-shadow: inset 0 0 0 1px rgba(60, 64, 67, 0.28);
 }
 
-.cal-now {
-  border-radius: 999px;
-  background: #d93025;
-  padding: 1px 8px;
-  color: #fff;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
 .cal-chip.is-now {
-  border-radius: 6px;
-  padding: 6px 8px;
-  box-shadow:
-    inset 0 0 0 2px #fff,
-    0 0 0 3px #d93025;
-  animation: now-pulse 1.6s ease-out infinite;
+  box-shadow: inset 3px 0 0 var(--foreground);
 }
 
-@keyframes now-pulse {
+[data-colors="off"] .cal-chip.is-now {
+  padding-left: 10px;
+}
+
+.load-bar {
+  background: var(--muted);
+  animation: load-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes load-pulse {
   0%,
   100% {
-    box-shadow:
-      inset 0 0 0 2px #fff,
-      0 0 0 3px #d93025;
+    opacity: 0.45;
   }
-  55% {
-    box-shadow:
-      inset 0 0 0 2px #fff,
-      0 0 0 3px #d93025,
-      0 0 0 10px rgba(217, 48, 37, 0.45);
+  50% {
+    opacity: 1;
   }
 }
 
