@@ -10,6 +10,7 @@ import { spreadsheetUrl, type AppConfig } from "./config.ts";
 import { readSyncState, type AppDatabase } from "./db.ts";
 import { listChanges } from "./services/changeHistoryService.ts";
 import { presentLecture } from "./services/presentLecture.ts";
+import { persistCancelledRemovals } from "./services/persistCancelled.ts";
 import { restoreRemovedLectures } from "./services/restoreRemoved.ts";
 import { loadSnapshot } from "./services/timetableSnapshotService.ts";
 import { runSync, type SyncContext } from "./services/syncScheduler.ts";
@@ -18,6 +19,7 @@ import { zonedParts } from "./time.ts";
 function buildBootstrap(db: AppDatabase, config: AppConfig, now = new Date()): BootstrapResponse {
   const state = readSyncState(db);
   const zone = zonedParts(now, config.timezone);
+  persistCancelledRemovals(db);
   const changes = listChanges(db, 80);
   const restored = restoreRemovedLectures(loadSnapshot(db), changes);
   const lectures = restored.lectures

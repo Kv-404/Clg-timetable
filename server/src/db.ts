@@ -4,6 +4,10 @@ import { DatabaseSync } from "node:sqlite";
 import type { ChangeEvent, ParseIssue } from "../../shared/types.ts";
 import type { ChangeDraft, StoredLecture } from "./model.ts";
 
+export interface StoredChange extends ChangeDraft {
+  id: number;
+}
+
 export type AppDatabase = DatabaseSync;
 
 export interface SyncState {
@@ -152,6 +156,82 @@ export function insertChanges(db: AppDatabase, drafts: ChangeDraft[]) {
       draft.next ? JSON.stringify(draft.next) : null,
       JSON.stringify(draft.fields),
     );
+  }
+}
+
+export function readAllChanges(db: AppDatabase): StoredChange[] {
+  const rows = db.prepare(`
+    SELECT id, dedupe_key, detected_at, type, lecture_id, division, course, semester, tab_name,
+           date, weekday, summary, previous_json, next_json, fields_json
+    FROM change_events
+    ORDER BY id ASC
+  `).all() as Array<{
+    id: number;
+    dedupe_key: string;
+    detected_at: string;
+    type: string;
+    lecture_id: string | null;
+    division: string | null;
+    course: string | null;
+    semester: string | null;
+    tab_name: string | null;
+    date: string | null;
+    weekday: string | null;
+    summary: string;
+    previous_json: string | null;
+    next_json: string | null;
+    fields_json: string | null;
+  }>;
+  return rows.map((row) => ({
+    id: row.id,
+    dedupeKey: row.dedupe_key,
+    detectedAt: row.detected_at,
+    type: row.type,
+    lectureId: row.lecture_id,
+    division: row.division,
+    course: row.course,
+    semester: row.semester,
+    tabName: row.tab_name,
+    date: row.date,
+    weekday: row.weekday,
+    summary: row.summary,
+    previous: row.previous_json ? JSON.parse(row.previous_json) : null,
+    next: row.next_json ? JSON.parse(row.next_json) : null,
+    fields: row.fields_json ? JSON.parse(row.fields_json) : [],
+  }));
+}
+
+export function replaceChangeRows(db: AppDatabase, rows: StoredChange[]) {
+  db.exec("DELETE FROM change_events");
+  const insert = db.prepare(`
+    INSERT INTO change_events (
+      id, dedupe_key, detected_at, type, lecture_id, division, course, semester, tab_name,
+      date, weekday, summary, previous_json, next_json, fields_json
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  for (const row of rows) {
+    insert.run(
+      row.id,
+      row.dedupeKey,
+      row.detectedAt,
+      row.type,
+      row.lectureId,
+      row.division,
+      row.course,
+      row.semester,
+      row.tabName,
+      row.date,
+      row.weekday,
+      row.summary,
+      row.previous ? JSON.stringify(row.previous) : null,
+      row.next ? JSON.stringify(row.next) : null,
+      JSON.stringify(row.fields),
+    );
+  }
+  const max = rows.reduce((highest, row) => Math.max(highest, row.id), 0);
+  const updated = db.prepare("UPDATE sqlite_sequence SET seq = ? WHERE name = 'change_events'").run(max);
+  if (updated.changes === 0 && max > 0) {
+    db.prepare("INSERT INTO sqlite_sequence (name, seq) VALUES ('change_events', ?)").run(max);
   }
 }
 

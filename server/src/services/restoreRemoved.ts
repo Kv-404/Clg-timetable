@@ -16,6 +16,7 @@ export function restoreRemovedLectures(lectures: StoredLecture[], changes: Chang
   );
   const restoredIds = new Set<string>();
   const restored: StoredLecture[] = [];
+  const rewritten: { id: number; summary: string }[] = [];
   for (const change of changes) {
     if (change.type !== "removed" || !change.lectureId || !change.tabName || !change.date) continue;
     if (ids.has(change.lectureId) || !days.has(`${change.tabName}|${change.date}`)) continue;
@@ -72,6 +73,7 @@ export function restoreRemovedLectures(lectures: StoredLecture[], changes: Chang
     });
     ids.add(change.lectureId);
     restoredIds.add(change.lectureId);
+    rewritten.push({ id: change.id, summary: `${subject} lecture cancelled.` });
   }
-  return { lectures: [...lectures, ...restored], restoredIds };
+  return { lectures: [...lectures, ...restored], restoredIds, rewritten };
 }

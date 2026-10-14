@@ -6,6 +6,7 @@ import { fetchSpreadsheet } from "./services/googleSheetsService.ts";
 
 // Vercel entry. The process is not always on, so each request syncs when the
 // last successful read is older than the interval. /tmp is wiped on a cold start.
+// The Blob archive is loaded first, so a removed lecture is still there to compare.
 loadEnvFiles();
 const config = getConfig();
 const databasePath = process.env.VERCEL ? "/tmp/timetable.sqlite" : config.databasePath;

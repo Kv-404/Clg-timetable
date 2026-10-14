@@ -186,6 +186,15 @@ html {
   box-shadow: inset 3px 0 0 var(--cal);
 }
 
+[data-colors="on"] .cal-chip .text-muted-foreground {
+  color: color-mix(in oklab, var(--foreground) 84%, var(--cal));
+}
+
+[data-colors="on"] .cal-chip .class-faculty,
+[data-colors="on"] .cal-chip .class-room {
+  color: var(--foreground);
+}
+
 .cal-peacock { --cal: var(--tone-peacock); --cal-ink: var(--ink-peacock); }
 .cal-basil { --cal: var(--tone-basil); --cal-ink: var(--ink-basil); }
 .cal-blueberry { --cal: var(--tone-blueberry); --cal-ink: var(--ink-blueberry); }
@@ -337,8 +346,18 @@ html {
   box-shadow: none;
 }
 
-[data-colors="on"][data-bold="on"] .cal-chip .text-muted-foreground {
+[data-colors="on"][data-bold="on"] .cal-chip .text-muted-foreground,
+[data-colors="on"] .cal-chip.is-now .class-faculty,
+[data-colors="on"] .cal-chip.is-now .class-room,
+[data-colors="on"][data-bold="on"] .cal-chip .class-faculty,
+[data-colors="on"][data-bold="on"] .cal-chip .class-room {
   color: inherit;
+}
+
+[data-colors="on"] .cal-chip.is-now .class-room,
+[data-colors="on"][data-bold="on"] .cal-chip .class-room {
+  background: transparent;
+  padding: 0;
 }
 
 [data-colors="off"] .cal-chip.is-now {

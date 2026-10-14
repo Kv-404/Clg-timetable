@@ -27,5 +27,6 @@ export function loadEnvFiles() {
   if (!import.meta.url) return;
   const here = path.dirname(fileURLToPath(import.meta.url));
   applyEnvFile(path.resolve(here, "../../.env"));
+  applyEnvFile(path.resolve(here, "../../.env.local"));
   applyEnvFile(path.resolve(here, "../.env"));
 }

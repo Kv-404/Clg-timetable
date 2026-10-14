@@ -71,36 +71,11 @@ export function WeeklyView({
         return (
           <section key={date} ref={date === today ? todayBlock : undefined} className={`mb-6 ${date === today ? "scroll-mt-28" : ""}`}>
             <h2 className="sticky top-24 z-20 flex items-baseline gap-2 border-b border-border bg-background py-2">
-              <span className={`text-base font-semibold tracking-tight ${off ? "text-danger" : ""}`}>{weekday.slice(0, 3)}</span>
-              <span className={`text-sm ${off ? "text-danger" : "text-muted-foreground"}`}>{formatCalendarDate(date).replace(/^[A-Za-z]{3},?\s*/, "")}</span>
-              {date === today && <span className="text-xs font-medium text-muted-foreground">Today</span>}
+              <span className={`text-base font-semibold tracking-tight ${off ? "text-danger" : ""}`}>{off ? `${weekday} Off` : weekday.slice(0, 3)}</span>
+              {!off && <span className="text-sm text-muted-foreground">{formatCalendarDate(date).replace(/^[A-Za-z]{3},?\s*/, "")}</span>}
+              {date === today && !off && <span className="text-xs font-medium text-muted-foreground">Today</span>}
             </h2>
-            {off ? (
-              <ol>
-                {starts.map((start) => {
-                  const sample = lectures.find((lecture) => lecture.startMinutes === start && lecture.kind !== "off");
-                  const row = lectures.filter((lecture) => lecture.startMinutes === start && lecture.kind !== "off");
-                  const breakOnly = row.length > 0 && row.every((lecture) => lecture.kind === "break");
-                  if (!sample) return null;
-                  if (breakOnly) {
-                    return (
-                      <li key={start} className="flex items-baseline gap-3 border-b border-border py-2 text-xs text-muted-foreground">
-                        <span className="w-12 shrink-0 text-right font-mono">{bareTime(sample.startLabel)}</span>
-                        <span>
-                          {sample.subject} · {formatCompactRange(sample.startLabel, sample.endLabel)}
-                        </span>
-                      </li>
-                    );
-                  }
-                  return (
-                    <li key={start} className="flex items-baseline gap-3 border-b border-border py-2.5">
-                      <span className="w-12 shrink-0 text-right font-mono text-[11px] text-muted-foreground">{bareTime(sample.startLabel)}</span>
-                      <span className="text-sm font-medium text-danger">Off</span>
-                    </li>
-                  );
-                })}
-              </ol>
-            ) : (
+            {off ? null : (
               <ol>
                 {[...dayLectures]
                   .sort((a, b) => a.startMinutes - b.startMinutes || a.subject.localeCompare(b.subject))
@@ -288,9 +263,9 @@ function ClassFoot({ faculty, room }: { faculty: string; room: string }) {
   const place = room ? compactRoom(room) : "";
   if (!faculty && !place) return null;
   return (
-    <div className="mt-1 flex items-baseline justify-between gap-2 text-[11px] leading-tight text-muted-foreground">
-      <span className="min-w-0 truncate" title={faculty}>{faculty}</span>
-      {place && <span className="shrink-0" title={room}>{place}</span>}
+    <div className="mt-1.5 flex items-start justify-between gap-2 text-[13px] leading-snug">
+      <span className="class-faculty min-w-0 font-medium text-foreground" title={faculty}>{faculty}</span>
+      {place && <span className="class-room shrink-0 rounded bg-background/80 px-1.5 py-px font-bold tracking-tight text-foreground" title={room}>{place}</span>}
     </div>
   );
 }

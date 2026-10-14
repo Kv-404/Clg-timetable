@@ -7,6 +7,8 @@ import { compareSnapshots, initialSnapshot } from "./changeDetectionService.ts";
 import { recordChanges } from "./changeHistoryService.ts";
 import { contentFingerprint, normalizeWorkbook } from "./timetableNormalizer.ts";
 import { parseTimetableSource } from "./timetableParser.ts";
+import { hydrateArchive, publishArchive } from "./durableState.ts";
+import { persistCancelledRemovals } from "./persistCancelled.ts";
 import { loadSnapshot, saveSnapshot, toNormalized } from "./timetableSnapshotService.ts";
 
 export interface SyncContext {
@@ -48,11 +50,13 @@ function withCarriedTabs(previous: ReturnType<typeof loadSnapshot>, lectures: No
 async function performSync(ctx: SyncContext): Promise<SyncOutcome> {
   const now = ctx.now ?? new Date();
   const attemptAt = now.toISOString();
-  const current = readSyncState(ctx.db);
   try {
+    await hydrateArchive(ctx.db);
+    const current = readSyncState(ctx.db);
     const { buffer } = await ctx.load();
     const parsed = await parseTimetableSource(buffer, { dateOrder: ctx.config.dateOrder });
     const normalized = normalizeWorkbook(parsed, { courseFallback: ctx.config.courseName });
+    persistCancelledRemovals(ctx.db);
     const previous = loadSnapshot(ctx.db);
     const retained = withCarriedTabs(previous, normalized.lectures, normalized.issues);
     const tabNames = parsed.tabs.map((tab) => tab.name);
@@ -60,6 +64,7 @@ async function performSync(ctx: SyncContext): Promise<SyncOutcome> {
 
     if (current.bootstrapped && current.contentHash === contentHash) {
       writeSyncState(ctx.db, successState(current, attemptAt, contentHash, tabNames, retained.issues, ctx.config.spreadsheetTitle));
+      await publishArchive(ctx.db);
       return { ok: true, unchanged: true, changeCount: 0, error: null };
     }
 
@@ -85,6 +90,7 @@ async function performSync(ctx: SyncContext): Promise<SyncOutcome> {
       ctx.db.exec("ROLLBACK");
       throw error;
     }
+    await publishArchive(ctx.db);
     return { ok: true, unchanged: false, changeCount: stored.events.length, error: null };
   } catch (error) {
     const message = error instanceof Error ? error.message : "The spreadsheet could not be read.";
