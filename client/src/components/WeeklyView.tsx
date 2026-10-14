@@ -1,12 +1,11 @@
 import type { PublicLecture } from "@shared/types";
 import { cohortName } from "@shared/cohort";
 import { useEffect, useRef } from "react";
-import { ClassMeta } from "@/components/ClassMeta";
 import { StatusBadge, badgeText } from "@/components/StatusBadge";
 import { NowMark } from "@/components/TodayView";
 import { useColors } from "@/lib/colorState";
 import { ClockLabel } from "@/components/ClockLabel";
-import { formatCalendarDate, formatCompactRange } from "@/lib/time";
+import { compactRoom, formatCalendarDate, formatCompactRange } from "@/lib/time";
 import { isFullOff, slotPhase } from "@/lib/view";
 
 const dayOrder = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -247,13 +246,11 @@ function PhoneRow({ lecture, now }: { lecture: PublicLecture; showDivision: bool
       </p>
       <div className={`min-w-0 flex-1 ${classNameFor(lecture.subject, lecture.displayStatus)} ${now ? "is-now" : ""}`} data-testid="lecture-card" data-live={now ? "true" : undefined}>
         <div className="flex items-start justify-between gap-2">
-          <p className={`min-w-0 font-medium tracking-tight ${cancelled ? "line-through decoration-danger decoration-2" : ""}`}>{lecture.subject}</p>
-          <div className="flex shrink-0 items-start gap-2">
-            {now && <NowMark />}
-            {cancelled && <span className="text-[11px] font-semibold text-danger">Cancelled</span>}
-            <ClassMeta faculty={lecture.faculty} room={lecture.room} />
-          </div>
+          <p className={`min-w-0 leading-snug font-medium tracking-tight ${cancelled ? "line-through decoration-danger decoration-2" : ""}`}>{lecture.subject}</p>
+          {now && <NowMark />}
+          {cancelled && <span className="shrink-0 text-[11px] font-semibold text-danger">Cancelled</span>}
         </div>
+        <ClassFoot faculty={lecture.faculty} room={lecture.room} />
       </div>
     </li>
   );
@@ -267,26 +264,33 @@ function Cell({ lecture, showDivision, now }: { lecture: PublicLecture; showDivi
   return (
     <div className={`${classNameFor(lecture.subject, lecture.displayStatus)} ${now ? "is-now" : ""}`} data-testid="lecture-card" data-live={now ? "true" : undefined}>
       <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className={`${now ? "font-semibold" : "font-medium"} ${cancelled ? "line-through decoration-danger decoration-2" : ""}`}>{lecture.subject}</p>
-          {showDivision && <p className="text-[11px] text-muted-foreground">{cohortName(lecture.division)}</p>}
-          {previousTime && (
-            <p className="text-xs">
-              <span className="line-through">{lecture.previous?.startLabel}</span> {lecture.startLabel}
-            </p>
-          )}
-        </div>
-        <div className="flex shrink-0 items-start gap-2">
-          {now && <NowMark />}
-          {cancelled && <span className="text-[10px] font-semibold tracking-wide text-danger uppercase">Cancelled</span>}
-          <ClassMeta faculty={lecture.faculty} room={lecture.room} />
-        </div>
+        <p className={`min-w-0 leading-snug ${now ? "font-semibold" : "font-medium"} ${cancelled ? "line-through decoration-danger decoration-2" : ""}`}>{lecture.subject}</p>
+        {now && <NowMark />}
+        {cancelled && <span className="shrink-0 text-[10px] font-semibold tracking-wide text-danger uppercase">Cancelled</span>}
       </div>
+      {showDivision && <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{cohortName(lecture.division)}</p>}
+      {previousTime && (
+        <p className="mt-0.5 text-xs">
+          <span className="line-through">{lecture.previous?.startLabel}</span> {lecture.startLabel}
+        </p>
+      )}
+      <ClassFoot faculty={lecture.faculty} room={lecture.room} />
       {rescheduled && (
         <div className="mt-1">
           <StatusBadge status={lecture.displayStatus} label={badgeText(lecture.displayStatus, lecture.subject)} />
         </div>
       )}
+    </div>
+  );
+}
+
+function ClassFoot({ faculty, room }: { faculty: string; room: string }) {
+  const place = room ? compactRoom(room) : "";
+  if (!faculty && !place) return null;
+  return (
+    <div className="mt-1 flex items-baseline justify-between gap-2 text-[11px] leading-tight text-muted-foreground">
+      <span className="min-w-0 truncate" title={faculty}>{faculty}</span>
+      {place && <span className="shrink-0" title={room}>{place}</span>}
     </div>
   );
 }

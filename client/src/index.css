@@ -127,6 +127,57 @@
   --warning-foreground: #171717;
 }
 
+@property --cal {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+
+@property --cal-ink {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: canvastext;
+}
+
+@property --tone-peacock { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --tone-basil { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --tone-blueberry { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --tone-grape { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --tone-flamingo { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --tone-tangerine { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --tone-banana { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --tone-sage { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --tone-lavender { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --tone-graphite { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --ink-peacock { syntax: "<color>"; inherits: true; initial-value: canvastext; }
+@property --ink-basil { syntax: "<color>"; inherits: true; initial-value: canvastext; }
+@property --ink-blueberry { syntax: "<color>"; inherits: true; initial-value: canvastext; }
+@property --ink-grape { syntax: "<color>"; inherits: true; initial-value: canvastext; }
+@property --ink-flamingo { syntax: "<color>"; inherits: true; initial-value: canvastext; }
+@property --ink-tangerine { syntax: "<color>"; inherits: true; initial-value: canvastext; }
+@property --ink-banana { syntax: "<color>"; inherits: true; initial-value: canvastext; }
+@property --ink-sage { syntax: "<color>"; inherits: true; initial-value: canvastext; }
+@property --ink-lavender { syntax: "<color>"; inherits: true; initial-value: canvastext; }
+@property --ink-graphite { syntax: "<color>"; inherits: true; initial-value: canvastext; }
+
+html {
+  transition:
+    --tone-peacock 240ms ease, --ink-peacock 240ms ease,
+    --tone-basil 240ms ease, --ink-basil 240ms ease,
+    --tone-blueberry 240ms ease, --ink-blueberry 240ms ease,
+    --tone-grape 240ms ease, --ink-grape 240ms ease,
+    --tone-flamingo 240ms ease, --ink-flamingo 240ms ease,
+    --tone-tangerine 240ms ease, --ink-tangerine 240ms ease,
+    --tone-banana 240ms ease, --ink-banana 240ms ease,
+    --tone-sage 240ms ease, --ink-sage 240ms ease,
+    --tone-lavender 240ms ease, --ink-lavender 240ms ease,
+    --tone-graphite 240ms ease, --ink-graphite 240ms ease;
+}
+
+.cal-chip {
+  transition: background-color 240ms ease, color 240ms ease, box-shadow 240ms ease;
+}
+
 [data-colors="on"] .cal-chip {
   border-radius: 8px;
   padding: 7px 10px 7px 11px;
