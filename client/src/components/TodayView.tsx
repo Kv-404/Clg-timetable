@@ -1,8 +1,9 @@
 import type { PublicLecture } from "@shared/types";
 import { cohortName } from "@shared/cohort";
+import { ClassMeta } from "@/components/ClassMeta";
 import { StatusBadge, badgeText } from "@/components/StatusBadge";
 import { ClockLabel } from "@/components/ClockLabel";
-import { formatLongDate } from "@/lib/time";
+import { formatCalendarDate, formatCompactRange, formatLongDate } from "@/lib/time";
 import { useColors } from "@/lib/colorState";
 import { collapseFullOffDays, slotPhase } from "@/lib/view";
 
@@ -26,54 +27,89 @@ export function TodayView({
   if (visible.length === 0) {
     return <p className="py-8 text-sm text-muted-foreground">Nothing matches this day.</p>;
   }
+  const todayHeading = date === today;
   return (
     <div>
-      <h2 className="text-muted-foreground font-mono text-[11px] font-medium tracking-[0.22em] uppercase">{formatLongDate(date)}</h2>
+      <h2 className={todayHeading ? "text-foreground" : "text-muted-foreground"}>
+        <span className="font-sans text-sm font-semibold tracking-normal sm:hidden">
+          {formatCalendarDate(date)}
+          {todayHeading && <span className="ml-2 text-xs font-medium text-muted-foreground">Today</span>}
+        </span>
+        <span className="hidden font-mono text-[11px] font-medium tracking-[0.22em] uppercase sm:inline">{formatLongDate(date)}</span>
+      </h2>
       {note && <p className="mt-1 text-sm text-muted-foreground">{note}</p>}
-      <ol className="mt-4 grid grid-cols-1 gap-x-4 border-t border-border sm:grid-cols-[max-content_minmax(0,1fr)]">
+      <ol className="mt-2 flex flex-col gap-1.5 sm:mt-4 sm:grid sm:grid-cols-[max-content_minmax(0,1fr)] sm:gap-x-4 sm:gap-y-0 sm:border-t sm:border-border">
         {timeline(visible).map((item, index) => {
           if (item.kind === "break") {
             return (
-              <li key={item.key} className="rise-row col-span-1 border-b border-border py-3 text-sm text-muted-foreground sm:col-span-2" style={{ animationDelay: `${Math.min(index, 12) * 35}ms` }}>
-                {item.lecture.subject} · {item.lecture.startLabel} – {item.lecture.endLabel}
+              <li key={item.key} className="rise-row py-1 text-xs text-muted-foreground sm:col-span-2 sm:border-b sm:border-border sm:py-3 sm:text-sm" style={{ animationDelay: `${Math.min(index, 12) * 35}ms` }}>
+                <span className="sm:hidden">{item.lecture.subject.replace(/ break$/i, "")} · {formatCompactRange(item.lecture.startLabel, item.lecture.endLabel)}</span>
+                <span className="hidden sm:inline">
+                  {item.lecture.subject} · {item.lecture.startLabel} – {item.lecture.endLabel}
+                </span>
               </li>
             );
           }
           const live = isLive(item.lecture, today, minutes);
-          const detail = [showDivision ? cohortName(item.lecture.division) : "", item.lecture.faculty, item.lecture.room].filter(Boolean);
+          const off = item.lecture.subject === "OFF";
+          const allDayOff = off && item.lecture.id.endsWith("-off");
+          const showStatus = !off && (item.lecture.displayStatus === "cancelled" || item.lecture.displayStatus === "rescheduled");
           return (
             <li
               key={item.lecture.id}
-              className="rise-row col-span-1 grid grid-cols-1 items-start gap-y-1 border-b border-border py-2.5 sm:col-span-2 sm:grid-cols-subgrid sm:gap-y-0"
+              className="rise-row sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-start sm:border-b sm:border-border sm:py-2.5"
               style={{ animationDelay: `${Math.min(index, 12) * 35}ms` }}
             >
-              <p className={`flex items-baseline gap-1 font-mono text-xs whitespace-nowrap sm:pt-1.5 ${live ? "text-foreground" : "text-muted-foreground"}`}>
-                <ClockLabel label={item.lecture.startLabel} />
-                <span aria-hidden="true">–</span>
-                <ClockLabel label={item.lecture.endLabel} />
+              <p className={`hidden items-baseline gap-1 font-mono text-xs whitespace-nowrap sm:flex sm:pt-1.5 ${live ? "text-foreground" : "text-muted-foreground"} ${allDayOff ? "text-danger" : ""}`}>
+                {!allDayOff && (
+                  <>
+                    <ClockLabel label={item.lecture.startLabel} />
+                    <span aria-hidden="true">–</span>
+                    <ClockLabel label={item.lecture.endLabel} />
+                  </>
+                )}
               </p>
               <div
                 data-testid="lecture-card"
                 data-live={live ? "true" : undefined}
                 className={`min-w-0 ${classNameFor(item.lecture.subject, item.lecture.displayStatus)} ${live ? "is-now" : ""}`}
               >
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className={`font-medium tracking-tight ${item.lecture.displayStatus === "cancelled" ? "text-danger line-through" : ""}`}>{item.lecture.subject}</p>
-                  {item.lecture.displayStatus !== "scheduled" && (
-                    <StatusBadge status={item.lecture.displayStatus} label={badgeText(item.lecture.displayStatus, item.lecture.subject)} />
-                  )}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    {!allDayOff && (
+                      <p className="font-mono text-[11px] text-muted-foreground sm:hidden" aria-label={`${item.lecture.startLabel} to ${item.lecture.endLabel}`}>
+                        {formatCompactRange(item.lecture.startLabel, item.lecture.endLabel)}
+                      </p>
+                    )}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className={`tracking-tight ${off ? "text-danger" : ""} ${live ? "font-semibold" : "font-medium"} ${item.lecture.displayStatus === "cancelled" && !off ? "line-through decoration-danger" : ""}`}>
+                        {item.lecture.subject}
+                      </p>
+                      {showStatus && <StatusBadge status={item.lecture.displayStatus} label={badgeText(item.lecture.displayStatus, item.lecture.subject)} />}
+                    </div>
+                    {showDivision && <p className="text-[11px] text-muted-foreground">{cohortName(item.lecture.division)}</p>}
+                  </div>
+                  <div className="flex shrink-0 items-start gap-2">
+                    {live && <NowMark />}
+                    {!off && <ClassMeta faculty={item.lecture.faculty} room={item.lecture.room} />}
+                  </div>
                 </div>
-                {detail.length > 0 && <p className="mt-1 text-sm text-muted-foreground">{detail.join(" · ")}</p>}
-                {item.lecture.previous?.room && item.lecture.previous.room !== item.lecture.room && (
-                  <p className="text-sm text-muted-foreground">Was {item.lecture.previous.room}</p>
-                )}
-                {item.lecture.reason && <p className="mt-1 text-sm">{item.lecture.reason}</p>}
+                {item.lecture.reason && !off && <p className="mt-1 text-sm">{item.lecture.reason}</p>}
+                {item.lecture.reason && off && <p className="mt-1 hidden text-sm sm:block">{item.lecture.reason}</p>}
               </div>
             </li>
           );
         })}
       </ol>
     </div>
+  );
+}
+
+export function NowMark() {
+  return (
+    <span className="now-mark" data-testid="now-mark">
+      Now
+    </span>
   );
 }
 

@@ -203,8 +203,32 @@ describe("change detection", () => {
       endLabel: "2:00 PM",
     });
     const diff = compare([removed], [added]);
-    assert.deepEqual(diff.events.map((event) => event.type).sort(), ["added", "removed"]);
-    assert.equal(diff.lectures.length, 1);
-    assert.notEqual(diff.lectures[0]?.id, removed.id);
+    assert.deepEqual(diff.events.map((event) => event.type).sort(), ["added", "cancelled"]);
+    assert.equal(diff.lectures.length, 2);
+    const kept = diff.lectures.find((item) => item.id === removed.id);
+    assert.equal(kept?.sourceStatus, "cancelled");
+    assert.notEqual(diff.lectures.find((item) => item.subject === "Operating Systems" && item.id !== removed.id)?.id, removed.id);
+  });
+
+  it("keeps a lecture that was removed from a day that is still published, and marks it cancelled", () => {
+    const gone = lecture({ subject: "Interactive Session", startMinutes: 920, endMinutes: 980, startLabel: "3:20 PM", endLabel: "4:20 PM" });
+    const stays = lecture({ subject: "Software Engineering", startMinutes: 600, endMinutes: 660 });
+    const diff = compare([gone, stays], [stays]);
+    assert.equal(diff.events.length, 1);
+    assert.equal(diff.events[0]?.type, "cancelled");
+    assert.match(diff.events[0]?.summary ?? "", /lecture cancelled/i);
+    assert.equal(diff.lectures.length, 2);
+    const cancelled = diff.lectures.find((item) => item.id === gone.id);
+    assert.equal(cancelled?.sourceStatus, "cancelled");
+    assert.equal(presentLecture(cancelled!, now, 72).displayStatus, "cancelled");
+
+    const again = compareSnapshots(diff.lectures, [stays], {
+      now: new Date("2026-10-13T06:40:00.000Z"),
+      previousTabs: ["Tuesday"],
+      nextTabs: ["Tuesday"],
+      bootstrapped: true,
+    });
+    assert.equal(again.events.length, 0);
+    assert.equal(again.lectures.find((item) => item.id === gone.id)?.sourceStatus, "cancelled");
   });
 });

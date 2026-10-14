@@ -29,6 +29,36 @@ export function formatClock(date: Date, timeZone: string) {
   }).format(date);
 }
 
+export function formatClockTime(date: Date, timeZone: string) {
+  return new Intl.DateTimeFormat("en-IN", {
+    timeZone,
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(date);
+}
+
+/** "10:00 AM"–"11:00 AM" becomes "10:00–11:00". Daytime slots stay clear without AM/PM. */
+export function formatCompactRange(start: string, end: string) {
+  const bare = (label: string) => label.replace(/\s*[AP]M$/i, "").trim();
+  const left = bare(start);
+  const right = bare(end);
+  if (!left) return right;
+  if (!right || left === right) return left;
+  return `${left}–${right}`;
+}
+
+export function shortRoom(room: string) {
+  const match = /^Classroom\s*-\s*(.+)$/i.exec(room.trim());
+  return match ? `Room ${match[1]}` : room;
+}
+
+/** "Classroom - 29" and "Room 29" become "Cr 29". */
+export function compactRoom(room: string) {
+  const match = /^(?:Classroom\s*-\s*|Room\s+)(.+)$/i.exec(room.trim());
+  return match ? `Cr ${match[1]}` : room;
+}
+
 export function formatCalendarDate(iso: string) {
   const date = new Date(`${iso}T12:00:00Z`);
   return new Intl.DateTimeFormat("en-IN", {

@@ -10,6 +10,7 @@ import { spreadsheetUrl, type AppConfig } from "./config.ts";
 import { readSyncState, type AppDatabase } from "./db.ts";
 import { listChanges } from "./services/changeHistoryService.ts";
 import { presentLecture } from "./services/presentLecture.ts";
+import { restoreRemovedLectures } from "./services/restoreRemoved.ts";
 import { loadSnapshot } from "./services/timetableSnapshotService.ts";
 import { runSync, type SyncContext } from "./services/syncScheduler.ts";
 import { zonedParts } from "./time.ts";
@@ -17,7 +18,9 @@ import { zonedParts } from "./time.ts";
 function buildBootstrap(db: AppDatabase, config: AppConfig, now = new Date()): BootstrapResponse {
   const state = readSyncState(db);
   const zone = zonedParts(now, config.timezone);
-  const lectures = loadSnapshot(db)
+  const changes = listChanges(db, 80);
+  const restored = restoreRemovedLectures(loadSnapshot(db), changes);
+  const lectures = restored.lectures
     .map((lecture) => presentLecture(lecture, now, config.highlightHours))
     .sort((a, b) => {
       const date = (a.date ?? "").localeCompare(b.date ?? "");
@@ -54,7 +57,11 @@ function buildBootstrap(db: AppDatabase, config: AppConfig, now = new Date()): B
     },
     parseIssues: state.parseIssues,
     lectures,
-    changes: listChanges(db, 80),
+    changes: changes.map((change) => {
+      if (!change.lectureId || !restored.restoredIds.has(change.lectureId) || change.type !== "removed") return change;
+      const subject = change.previous?.subject || "A lecture";
+      return { ...change, type: "cancelled", summary: `${subject} lecture cancelled.` };
+    }),
   };
 }
 

@@ -115,8 +115,8 @@ function row(pairs: readonly (readonly [string, string])[]): Row {
 
 /** Three dots for the Theme preset button. These match the theme palette, including the dark red. */
 const themeMarks: Record<ThemeId, [string, string, string]> = {
-  dark: ["#3d5a73", "#94302c", "#3d6b52"],
-  light: ["#b9d4ee", "#f0b8c2", "#9ed4b4"],
+  dark: ["#5ec8ff", "#fda4af", "#4ade80"],
+  light: ["#38bdf8", "#fb7185", "#34d399"],
   nord: ["#88c0d0", "#e7a0a4", "#a3be8c"],
   catppuccin: ["#89b4fa", "#f38ba8", "#a6e3a1"],
   dracula: ["#8be9fd", "#ff79c6", "#50fa7b"],

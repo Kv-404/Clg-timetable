@@ -1,11 +1,12 @@
 import type { PublicLecture } from "@shared/types";
 import { cohortName } from "@shared/cohort";
 import { useEffect, useRef } from "react";
+import { ClassMeta } from "@/components/ClassMeta";
 import { StatusBadge, badgeText } from "@/components/StatusBadge";
-import { TodayView } from "@/components/TodayView";
+import { NowMark } from "@/components/TodayView";
 import { useColors } from "@/lib/colorState";
 import { ClockLabel } from "@/components/ClockLabel";
-import { formatCalendarDate } from "@/lib/time";
+import { formatCalendarDate, formatCompactRange } from "@/lib/time";
 import { isFullOff, slotPhase } from "@/lib/view";
 
 const dayOrder = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -22,6 +23,7 @@ export function WeeklyView({
   minutes?: number;
 }) {
   const scroller = useRef<HTMLDivElement>(null);
+  const todayBlock = useRef<HTMLDivElement>(null);
   const days = [...new Set(lectures.map((lecture) => lecture.date).filter((date): date is string => Boolean(date)))].sort((a, b) => a.localeCompare(b));
   const dayKey = days.join("|");
   useEffect(() => {
@@ -46,6 +48,11 @@ export function WeeklyView({
     window.addEventListener("resize", revealToday);
     return () => window.removeEventListener("resize", revealToday);
   }, [today, dayKey]);
+  useEffect(() => {
+    const block = todayBlock.current;
+    if (!block || !window.matchMedia("(max-width: 639px)").matches) return;
+    block.scrollIntoView({ block: "start", behavior: "instant" });
+  }, [today, dayKey]);
   if (days.length === 0) {
     return <p className="py-8 text-sm text-muted-foreground">No dated lectures match these filters.</p>;
   }
@@ -57,12 +64,55 @@ export function WeeklyView({
     .sort((a, b) => a - b);
   return (
     <>
-    <div className="space-y-8 sm:hidden">
-      {days.map((date) => (
-        <div key={date}>
-          <TodayView lectures={forDay(date)} today={today} minutes={minutes} showDivision={showDivision} />
-        </div>
-      ))}
+    <div className="sm:hidden">
+      {days.map((date) => {
+        const dayLectures = forDay(date);
+        const weekday = dayLectures[0]?.weekday ?? "";
+        const off = offDay(date);
+        return (
+          <section key={date} ref={date === today ? todayBlock : undefined} className={`mb-6 ${date === today ? "scroll-mt-28" : ""}`}>
+            <h2 className="sticky top-24 z-20 flex items-baseline gap-2 border-b border-border bg-background py-2">
+              <span className={`text-base font-semibold tracking-tight ${off ? "text-danger" : ""}`}>{weekday.slice(0, 3)}</span>
+              <span className={`text-sm ${off ? "text-danger" : "text-muted-foreground"}`}>{formatCalendarDate(date).replace(/^[A-Za-z]{3},?\s*/, "")}</span>
+              {date === today && <span className="text-xs font-medium text-muted-foreground">Today</span>}
+            </h2>
+            {off ? (
+              <ol>
+                {starts.map((start) => {
+                  const sample = lectures.find((lecture) => lecture.startMinutes === start && lecture.kind !== "off");
+                  const row = lectures.filter((lecture) => lecture.startMinutes === start && lecture.kind !== "off");
+                  const breakOnly = row.length > 0 && row.every((lecture) => lecture.kind === "break");
+                  if (!sample) return null;
+                  if (breakOnly) {
+                    return (
+                      <li key={start} className="flex items-baseline gap-3 border-b border-border py-2 text-xs text-muted-foreground">
+                        <span className="w-12 shrink-0 text-right font-mono">{bareTime(sample.startLabel)}</span>
+                        <span>
+                          {sample.subject} · {formatCompactRange(sample.startLabel, sample.endLabel)}
+                        </span>
+                      </li>
+                    );
+                  }
+                  return (
+                    <li key={start} className="flex items-baseline gap-3 border-b border-border py-2.5">
+                      <span className="w-12 shrink-0 text-right font-mono text-[11px] text-muted-foreground">{bareTime(sample.startLabel)}</span>
+                      <span className="text-sm font-medium text-danger">Off</span>
+                    </li>
+                  );
+                })}
+              </ol>
+            ) : (
+              <ol>
+                {[...dayLectures]
+                  .sort((a, b) => a.startMinutes - b.startMinutes || a.subject.localeCompare(b.subject))
+                  .map((lecture) => (
+                    <PhoneRow key={lecture.id} lecture={lecture} showDivision={showDivision} now={isLive(lecture, today, minutes)} />
+                  ))}
+              </ol>
+            )}
+          </section>
+        );
+      })}
     </div>
     <div ref={scroller} className="rise hidden overflow-x-auto border-y border-border sm:block">
       <table className="w-full min-w-[760px] border-collapse text-left text-sm">
@@ -74,17 +124,9 @@ export function WeeklyView({
               const weekday = dayLectures[0]?.weekday ?? "";
               const off = offDay(date);
               return (
-                <th key={date} className={`min-w-40 px-3 py-3 align-bottom font-medium ${date === today ? "cal-today" : ""}`}>
+                <th key={date} className={`min-w-40 px-3 py-3 align-bottom font-medium ${date === today ? "cal-today" : ""} ${off ? "text-danger" : ""}`}>
                   <span className="block">{weekday || dayOrder.find((day) => dayLectures.some((lecture) => lecture.weekday === day))}</span>
-                  <span className="block text-xs font-normal text-muted-foreground">{formatCalendarDate(date)}</span>
-                  {off && (
-                    <>
-                      <span className="mt-1 inline-flex">
-                        <StatusBadge status="cancelled" label="OFF" />
-                      </span>
-                      <span className="mt-1 block text-xs font-normal text-danger">{spanOf(dayLectures)}</span>
-                    </>
-                  )}
+                  <span className={`block text-xs font-normal ${off ? "text-danger" : "text-muted-foreground"}`}>{formatCalendarDate(date)}</span>
                 </th>
               );
             })}
@@ -95,10 +137,7 @@ export function WeeklyView({
             <tr className="align-top">
               <th className="sticky left-0 bg-background px-3 py-3 font-mono text-xs font-medium whitespace-nowrap text-muted-foreground">All day</th>
               {days.map((date) => (
-                <td key={date} className="px-3 py-3 text-sm text-danger">
-                  OFF
-                  <span className="mt-1 block text-xs">{spanOf(forDay(date))}</span>
-                </td>
+                <td key={date} className="px-3 py-3" />
               ))}
             </tr>
           ) : (
@@ -113,8 +152,8 @@ export function WeeklyView({
                     {segments(days, offDay).map((segment) =>
                       segment.off ? (
                         segment.dates.map((date) => (
-                          <td key={date} className="px-3 py-2 text-center text-xs text-danger">
-                            OFF
+                          <td key={date} className="px-3 py-2 text-sm font-medium text-danger">
+                            Off
                           </td>
                         ))
                       ) : (
@@ -141,8 +180,8 @@ export function WeeklyView({
                   {days.map((date) => {
                     if (offDay(date)) {
                       return (
-                        <td key={date} className={`px-3 py-3 text-xs text-danger ${date === today ? "cal-today" : ""}`}>
-                          OFF
+                        <td key={date} className={`px-3 py-3 text-sm font-medium text-danger ${date === today ? "cal-today" : ""}`}>
+                          Off
                         </td>
                       );
                     }
@@ -168,14 +207,6 @@ export function WeeklyView({
   );
 }
 
-function spanOf(items: PublicLecture[]) {
-  const slots = items.filter((lecture) => lecture.kind !== "break").sort((a, b) => a.startMinutes - b.startMinutes);
-  const first = slots[0];
-  const last = slots[slots.length - 1];
-  if (!first || !last) return "";
-  return `${first.startLabel} – ${last.endLabel}`;
-}
-
 function segments(days: string[], offDay: (date: string) => boolean) {
   const groups: { off: boolean; dates: string[] }[] = [];
   for (const date of days) {
@@ -191,26 +222,71 @@ function isLive(lecture: PublicLecture, today: string, minutes: number) {
   return lecture.kind === "lecture" && lecture.displayStatus !== "cancelled" && slotPhase(lecture, today, minutes) === "now";
 }
 
+function bareTime(label: string) {
+  return label.replace(/\s*[AP]M$/i, "").trim();
+}
+
+function PhoneRow({ lecture, now }: { lecture: PublicLecture; showDivision: boolean; now: boolean }) {
+  const { classNameFor } = useColors();
+  const cancelled = lecture.displayStatus === "cancelled" && lecture.subject !== "OFF";
+  if (lecture.kind === "break") {
+    return (
+      <li className="flex items-baseline gap-3 border-b border-border py-2 text-xs text-muted-foreground">
+        <span className="w-12 shrink-0 text-right font-mono">{bareTime(lecture.startLabel)}</span>
+        <span>
+          {lecture.subject} · {formatCompactRange(lecture.startLabel, lecture.endLabel)}
+        </span>
+      </li>
+    );
+  }
+  return (
+    <li className="flex gap-3 border-b border-border py-2">
+      <p className="w-12 shrink-0 pt-1.5 text-right font-mono text-[11px] leading-4 text-muted-foreground">
+        <span className="block">{bareTime(lecture.startLabel)}</span>
+        <span className="block">{bareTime(lecture.endLabel)}</span>
+      </p>
+      <div className={`min-w-0 flex-1 ${classNameFor(lecture.subject, lecture.displayStatus)} ${now ? "is-now" : ""}`} data-testid="lecture-card" data-live={now ? "true" : undefined}>
+        <div className="flex items-start justify-between gap-2">
+          <p className={`min-w-0 font-medium tracking-tight ${cancelled ? "line-through decoration-danger decoration-2" : ""}`}>{lecture.subject}</p>
+          <div className="flex shrink-0 items-start gap-2">
+            {now && <NowMark />}
+            {cancelled && <span className="text-[11px] font-semibold text-danger">Cancelled</span>}
+            <ClassMeta faculty={lecture.faculty} room={lecture.room} />
+          </div>
+        </div>
+      </div>
+    </li>
+  );
+}
+
 function Cell({ lecture, showDivision, now }: { lecture: PublicLecture; showDivision: boolean; now: boolean }) {
   const { classNameFor } = useColors();
-  const marked = lecture.displayStatus === "cancelled" || lecture.displayStatus === "changed" || lecture.displayStatus === "rescheduled";
+  const cancelled = lecture.displayStatus === "cancelled" && lecture.subject !== "OFF";
+  const rescheduled = lecture.displayStatus === "rescheduled";
   const previousTime = lecture.previous?.startLabel && lecture.previous.startLabel !== lecture.startLabel;
   return (
     <div className={`${classNameFor(lecture.subject, lecture.displayStatus)} ${now ? "is-now" : ""}`} data-testid="lecture-card" data-live={now ? "true" : undefined}>
-      {marked && (
-        <div className="mb-1 flex flex-wrap items-center gap-1.5">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className={`${now ? "font-semibold" : "font-medium"} ${cancelled ? "line-through decoration-danger decoration-2" : ""}`}>{lecture.subject}</p>
+          {showDivision && <p className="text-[11px] text-muted-foreground">{cohortName(lecture.division)}</p>}
+          {previousTime && (
+            <p className="text-xs">
+              <span className="line-through">{lecture.previous?.startLabel}</span> {lecture.startLabel}
+            </p>
+          )}
+        </div>
+        <div className="flex shrink-0 items-start gap-2">
+          {now && <NowMark />}
+          {cancelled && <span className="text-[10px] font-semibold tracking-wide text-danger uppercase">Cancelled</span>}
+          <ClassMeta faculty={lecture.faculty} room={lecture.room} />
+        </div>
+      </div>
+      {rescheduled && (
+        <div className="mt-1">
           <StatusBadge status={lecture.displayStatus} label={badgeText(lecture.displayStatus, lecture.subject)} />
         </div>
       )}
-      <p className={`font-medium ${lecture.displayStatus === "cancelled" ? "text-danger line-through" : ""}`}>{lecture.subject}</p>
-      {showDivision && <p className="text-xs text-muted-foreground">{cohortName(lecture.division)}</p>}
-      {previousTime && (
-        <p className="text-xs">
-          <span className="line-through">{lecture.previous?.startLabel}</span> {lecture.startLabel}
-        </p>
-      )}
-      <p className="text-xs text-muted-foreground">{lecture.room || lecture.faculty || ""}</p>
-      {lecture.previous?.room && lecture.previous.room !== lecture.room && <p className="text-xs">Was {lecture.previous.room}</p>}
     </div>
   );
 }

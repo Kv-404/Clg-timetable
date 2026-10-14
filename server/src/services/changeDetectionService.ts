@@ -391,7 +391,37 @@ export function compareSnapshots(previous: StoredLecture[], next: NormalizedLect
 
   for (const lecture of unmatchedPrevious) {
     if (usedRemoved.has(lecture.id) || lecture.kind === "break") continue;
-    // A disappeared row is not a cancellation unless the sheet says so.
+    const dayRemains = next.some((item) => item.tabName === lecture.tabName && item.date === lecture.date && item.kind !== "break");
+    // Dropping one class from a day that is still published is a cancellation. It stays on the grid in red.
+    if (dayRemains && lecture.kind === "lecture") {
+      const summary = `${lecture.subject} lecture cancelled.`;
+      const fields = ["subject", "time", "room", "faculty", "status"];
+      const already = lecture.sourceStatus === "cancelled";
+      if (!already) {
+        events.push(draft({
+          ...contextOf(lecture),
+          detectedAt,
+          type: "cancelled",
+          summary,
+          previous: previousOf(coreOf(lecture), fields),
+          next: null,
+          fields: ["status"],
+          dedupeParts: [lecture.id, "cancelled", coreOf(lecture)],
+        }));
+      }
+      output.push({
+        ...lecture,
+        sourceStatus: "cancelled",
+        explicitMark: "cancelled",
+        reason: lecture.reason || "Removed from the official timetable.",
+        anchor: lecture.anchor,
+        highlight: already && lecture.highlight?.displayStatus === "cancelled"
+          ? lecture.highlight
+          : highlightFor("cancelled", "cancelled", summary, detectedAt, previousOf(coreOf(lecture), fields), lecture.reason),
+      });
+      continue;
+    }
+    // The day itself is gone, so this is not marked as a cancelled class.
     const summary = `${lecture.subject} at ${rangeLabel(lecture)} is no longer listed. It was not marked cancelled.`;
     events.push(draft({
       ...contextOf(lecture),

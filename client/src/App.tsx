@@ -4,11 +4,12 @@ import { Dashboard } from "@/components/Dashboard";
 import { LoadingScreen } from "@/components/LoadingScreen";
 import { fetchBootstrap, refreshBootstrap } from "@/lib/api";
 import { ColorProvider } from "@/lib/colorState";
-import { applyColors, applyTheme, readStoredColors, readStoredTheme, type ThemeId } from "@/lib/prefs";
+import { applyBold, applyColors, applyTheme, readStoredBold, readStoredColors, readStoredTheme, type ThemeId } from "@/lib/prefs";
 
 function usePreferences() {
   const [theme, setTheme] = useState<ThemeId>(readStoredTheme);
   const [colors, setColors] = useState(readStoredColors);
+  const [bold, setBold] = useState(readStoredBold);
   useEffect(() => {
     applyTheme(theme);
     try {
@@ -20,11 +21,16 @@ function usePreferences() {
   useEffect(() => {
     applyColors(colors);
   }, [colors]);
+  useEffect(() => {
+    applyBold(bold);
+  }, [bold]);
   return {
     theme,
     colors,
+    bold,
     chooseTheme: (next: ThemeId) => setTheme(next),
     chooseColors: (next: boolean) => setColors(next),
+    chooseBold: (next: boolean) => setBold(next),
   };
 }
 
@@ -76,8 +82,10 @@ export function App() {
         onRefresh={() => refresh.mutate()}
         theme={preferences.theme}
         colors={preferences.colors}
+        bold={preferences.bold}
         onTheme={preferences.chooseTheme}
         onColors={preferences.chooseColors}
+        onBold={preferences.chooseBold}
       />
     </ColorProvider>
   );

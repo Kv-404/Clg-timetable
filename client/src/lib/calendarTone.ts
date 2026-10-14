@@ -41,12 +41,12 @@ export function writeColorMap(map: Partial<Record<string, ToneId>>) {
 }
 
 export function toneFor(subject: string, status: DisplayStatus, assigned?: ToneId | null): ToneId | "graphite" {
-  if (status === "cancelled") return "graphite";
+  if (subject.trim().toUpperCase() === "OFF") return "graphite";
   if (assigned && isToneId(assigned)) return assigned;
   return autoTone(subject);
 }
 
-/** Cancelled stays graphite. Everything else uses the saved colour, or an automatic one. */
+/** A class keeps its subject colour, including when it is cancelled. OFF stays neutral. */
 export function calendarTone(subject: string, status: DisplayStatus, assigned?: ToneId | null) {
   return `cal-chip cal-${toneFor(subject, status, assigned)}`;
 }

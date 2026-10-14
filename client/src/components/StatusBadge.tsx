@@ -16,7 +16,7 @@ export function StatusBadge({ status, label }: { status: DisplayStatus; label?: 
   return (
     <Badge variant={item.variant} aria-label={`Status: ${text}`}>
       <Icon className="size-3" aria-hidden="true" />
-      {text}
+      <span className="hidden sm:inline">{text}</span>
     </Badge>
   );
 }

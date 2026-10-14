@@ -9,16 +9,20 @@ export function Setup({
   cohort,
   theme,
   colors,
+  bold,
   onTheme,
   onColors,
+  onBold,
   onDone,
 }: {
   divisions: string[];
   cohort: string;
   theme: ThemeId;
   colors: boolean;
+  bold: boolean;
   onTheme: (theme: ThemeId) => void;
   onColors: (on: boolean) => void;
+  onBold: (on: boolean) => void;
   onDone: (division: string) => void;
 }) {
   const [step, setStep] = useState(0);
@@ -88,8 +92,9 @@ export function Setup({
                 );
               })}
             </div>
-            <div className="mt-3">
+            <div className="mt-3 space-y-2">
               <ColorSwitch on={colors} onChange={onColors} />
+              {colors && <ColorSwitch on={bold} onChange={onBold} title="Bold colours" onHint="Solid class colours" offHint="Soft tint" testId="bold-toggle" />}
             </div>
           </>
         )}

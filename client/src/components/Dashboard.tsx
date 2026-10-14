@@ -14,9 +14,8 @@ import { appleWeekCalendarUrl, calendarFeedUrl, googleWeekCalendarUrl, outlookWe
 import { readSetup, readStoredCohort, saveCohort, themes, type ThemeId } from "@/lib/prefs";
 import { ColorEditor } from "@/components/ColorEditor";
 import { ColorSwitch } from "@/components/ColorSwitch";
-import { useColors } from "@/lib/colorState";
-import { formatClock, zonedNow } from "@/lib/time";
-import { applyFilters, collapseFullOffDays, countStatuses, defaultFilters, slotPhase, unique, type Filters } from "@/lib/view";
+import { formatClock, formatClockTime, formatCompactRange, shortRoom, zonedNow } from "@/lib/time";
+import { applyFilters, collapseFullOffDays, defaultFilters, slotPhase, unique, type Filters } from "@/lib/view";
 
 const dayOrder = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
@@ -27,8 +26,10 @@ export function Dashboard({
   onRefresh,
   theme,
   colors,
+  bold,
   onTheme,
   onColors,
+  onBold,
 }: {
   data: BootstrapResponse;
   now: Date;
@@ -36,8 +37,10 @@ export function Dashboard({
   onRefresh: () => void;
   theme: ThemeId;
   colors: boolean;
+  bold: boolean;
   onTheme: (theme: ThemeId) => void;
   onColors: (on: boolean) => void;
+  onBold: (on: boolean) => void;
 }) {
   const [ready, setReady] = useState(readSetup);
   const [cohort, setCohort] = useState(readStoredCohort);
@@ -45,9 +48,10 @@ export function Dashboard({
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [view, setView] = useState("week");
   const zone = zonedNow(now, data.timezone);
-  const notifications = useChangeNotifications(data.changes);
   const divisions = unique(data.lectures.map((lecture) => lecture.division));
   const selected = divisions.includes(cohort) ? cohort : "";
+  const cohortChanges = data.changes.filter((change) => !selected || !change.division || change.division === selected);
+  const notifications = useChangeNotifications(cohortChanges);
 
   const courses = unique(data.lectures.map((lecture) => lecture.course));
   const semesters = unique(data.lectures.filter((lecture) => lecture.course === filters.course).map((lecture) => lecture.semester));
@@ -65,10 +69,9 @@ export function Dashboard({
   const effective = { ...filters, division: selected };
   const dayLectures = collapseFullOffDays(applyFilters(data.lectures, effective));
   const weekLectures = collapseFullOffDays(applyFilters(data.lectures, effective, { ignoreDay: true }));
-  const counts = countStatuses(view === "week" ? weekLectures : dayLectures);
   const todayPack = useMemo(() => resolveToday(dayLectures, zone.iso, filters.day), [dayLectures, zone.iso, filters.day]);
   const upcoming = nextClass(scope, zone.iso, zone.minutes);
-  const changes = data.changes.filter((change) => !selected || !change.division || change.division === selected);
+  const changes = cohortChanges;
   const failing = Boolean(data.sync.lastError);
 
   function choose(division: string) {
@@ -102,8 +105,10 @@ export function Dashboard({
         cohort={selected}
         theme={theme}
         colors={colors}
+        bold={bold}
         onTheme={onTheme}
         onColors={onColors}
+        onBold={onBold}
         onDone={(division) => {
           choose(division);
           setReady(true);
@@ -124,7 +129,7 @@ export function Dashboard({
             <IconButton label={pending ? "Refreshing" : "Refresh"} onClick={onRefresh} disabled={pending} testId="refresh-button">
               <RefreshCw className={`size-4 ${pending ? "animate-spin" : ""}`} aria-hidden="true" />
             </IconButton>
-            <AppearanceMenu theme={theme} colors={colors} subjects={subjects} onTheme={onTheme} onColors={onColors} />
+            <AppearanceMenu theme={theme} colors={colors} bold={bold} subjects={subjects} onTheme={onTheme} onColors={onColors} onBold={onBold} />
             <a
               href={data.spreadsheetUrl}
               target="_blank"
@@ -137,81 +142,80 @@ export function Dashboard({
             <IconButton label={filtersOpen ? "Hide filters" : "Filters"} pressed={filtersOpen} onClick={() => setFiltersOpen((open) => !open)}>
               <SlidersHorizontal className="size-4" aria-hidden="true" />
             </IconButton>
-            {notifications.supported && notifications.permission !== "granted" && (
-              <button type="button" className="hidden text-sm text-muted-foreground hover:text-foreground sm:inline" onClick={() => void notifications.enable()}>
+            {notifications.permission !== "granted" && (
+              <button type="button" data-testid="notify-button" className="hidden text-sm text-muted-foreground hover:text-foreground sm:inline" onClick={() => void notifications.enable()}>
                 Notify me
               </button>
             )}
           </div>
         </div>
-        <div className="flex gap-1.5 overflow-x-auto px-4 pb-2 sm:px-6">
-          {days.map((day) => (
-            <DayChip
-              key={day}
-              today={day === zone.weekday}
-              selected={view === "today" && (filters.day === day || (filters.day === "" && day === zone.weekday))}
-              onClick={() => {
-                patch({ day });
-                setView("today");
-              }}
-            >
-              {day.slice(0, 3)}
-            </DayChip>
-          ))}
+        <div className="flex items-center gap-2 px-3 pb-1.5 sm:gap-3 sm:px-6 sm:pb-2">
+          <div className="flex min-w-0 flex-1 gap-0.5 overflow-x-auto">
+            {days.map((day) => (
+              <DayChip
+                key={day}
+                today={day === zone.weekday}
+                selected={view === "today" && (filters.day === day || (filters.day === "" && day === zone.weekday))}
+                onClick={() => {
+                  patch({ day });
+                  setView("today");
+                }}
+              >
+                {day.slice(0, 3)}
+              </DayChip>
+            ))}
+          </div>
+          <TabsList aria-label="Timetable views" className="shrink-0 gap-3 pb-0 sm:gap-4">
+            <TabsTrigger value="today" className="inline-flex items-center gap-1.5">
+              <Clock className="hidden size-3.5 sm:block" aria-hidden="true" /> Day
+            </TabsTrigger>
+            <TabsTrigger value="week" className="inline-flex items-center gap-1.5">
+              <CalendarDays className="hidden size-3.5 sm:block" aria-hidden="true" /> Week
+            </TabsTrigger>
+            <TabsTrigger value="updates" className="inline-flex items-center gap-1.5">
+              <History className="hidden size-3.5 sm:block" aria-hidden="true" /> Updates
+            </TabsTrigger>
+          </TabsList>
         </div>
-        <TabsList aria-label="Timetable views" className="px-4 pb-2 sm:px-6">
-          <TabsTrigger value="today" className="inline-flex items-center gap-1.5">
-            <Clock className="size-3.5" aria-hidden="true" /> Day
-          </TabsTrigger>
-          <TabsTrigger value="week" className="inline-flex items-center gap-1.5">
-            <CalendarDays className="size-3.5" aria-hidden="true" /> Week
-          </TabsTrigger>
-          <TabsTrigger value="updates" className="inline-flex items-center gap-1.5">
-            <History className="size-3.5" aria-hidden="true" /> Updates
-          </TabsTrigger>
-        </TabsList>
       </header>
 
-      <main id="timetable" className="px-4 py-4 sm:px-6 sm:py-6">
+      <main id="timetable" className="px-3 py-3 sm:px-6 sm:py-6">
         <h1 className="sr-only">{cohortName(selected)} timetable</h1>
-        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-sm text-muted-foreground">
+        <div className="mb-4 flex items-end justify-between gap-4">
+          <div className="min-w-0">
+            <p className="hidden text-sm text-muted-foreground sm:block">
               {data.weekStart && data.weekEnd ? `${formatShort(data.weekStart)} – ${formatShort(data.weekEnd)}` : "This week"}
               <span className="mx-2">·</span>
               {formatClock(now, data.timezone)}
             </p>
+            {!upcoming && <p className="font-mono text-xs text-muted-foreground sm:hidden">{formatClockTime(now, data.timezone)}</p>}
             {upcoming && <NowLine lecture={upcoming} today={zone.iso} minutes={zone.minutes} />}
+            {notifications.permission !== "granted" && (
+              <button type="button" data-testid="notify-button" className="mt-2 text-xs text-muted-foreground hover:text-foreground sm:hidden" onClick={() => void notifications.enable()}>
+                Notify me
+              </button>
+            )}
           </div>
-          <p className="text-sm text-muted-foreground">
-            <span data-testid="stat-scheduled">Scheduled {counts.scheduled}</span>
-            <span className="mx-2">·</span>
-            <span data-testid="stat-cancelled" className={counts.cancelled > 0 ? "text-danger" : undefined}>
-              Cancelled {counts.cancelled}
-            </span>
-            <span className="mx-2">·</span>
-            <span data-testid="stat-changed">Changed {counts.changed}</span>
-          </p>
-        </div>
-        <p data-testid="sync-status" role={failing ? "alert" : "status"} className={`mb-4 text-sm ${failing ? "text-warning" : "sr-only"}`}>
-          {failing ? `Could not refresh. ${data.sync.lastError} The last timetable is still shown.` : syncedLabel(data.sync.lastSuccessAt, now)}
-        </p>
-        <div className="mb-4 flex flex-wrap items-center gap-3">
           <Input
             value={filters.query}
             onChange={(event) => patch({ query: event.target.value })}
             placeholder="Search subject, faculty, or room"
             aria-label="Search the timetable"
-            className="max-w-none sm:max-w-xs"
+            className="hidden w-64 shrink-0 sm:block"
           />
-          {notifications.supported && notifications.permission !== "granted" && (
-            <button type="button" className="text-sm text-muted-foreground hover:text-foreground sm:hidden" onClick={() => void notifications.enable()}>
-              Notify me
-            </button>
-          )}
         </div>
+        <p data-testid="sync-status" role={failing ? "alert" : "status"} className={`mb-4 text-sm ${failing ? "text-warning" : "sr-only"}`}>
+          {failing ? `Could not refresh. ${data.sync.lastError} The last timetable is still shown.` : syncedLabel(data.sync.lastSuccessAt, now)}
+        </p>
         {filtersOpen && (
-          <div className="mb-6 max-w-sm">
+          <div className="mb-6 max-w-sm space-y-3">
+            <Input
+              value={filters.query}
+              onChange={(event) => patch({ query: event.target.value })}
+              placeholder="Search"
+              aria-label="Search the timetable"
+              className="sm:hidden"
+            />
             <TimetableFilters
               filters={effective}
               courses={courses}
@@ -236,6 +240,18 @@ export function Dashboard({
           <RecentChanges changes={changes} timeZone={data.timezone} />
         </TabsContent>
       </main>
+      {notifications.notice && (
+        <div
+          role="status"
+          data-testid="notify-notice"
+          className="fixed inset-x-3 bottom-3 z-50 flex items-start gap-3 rounded-xl border border-border bg-background px-3 py-3 text-sm shadow-lg sm:inset-x-auto sm:right-6 sm:bottom-6 sm:max-w-sm"
+        >
+          <p className="min-w-0 flex-1 leading-snug">{notifications.notice}</p>
+          <button type="button" className="shrink-0 text-xs text-muted-foreground hover:text-foreground" onClick={notifications.dismiss}>
+            Close
+          </button>
+        </div>
+      )}
     </Tabs>
   );
 }
@@ -327,15 +343,19 @@ function CalendarMenu({ division }: { division: string }) {
 function AppearanceMenu({
   theme,
   colors,
+  bold,
   subjects,
   onTheme,
   onColors,
+  onBold,
 }: {
   theme: ThemeId;
   colors: boolean;
+  bold: boolean;
   subjects: string[];
   onTheme: (theme: ThemeId) => void;
   onColors: (on: boolean) => void;
+  onBold: (on: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -379,6 +399,11 @@ function AppearanceMenu({
           <div className="mt-3">
             <ColorSwitch on={colors} onChange={onColors} />
           </div>
+          {colors && (
+            <div className="mt-2">
+              <ColorSwitch on={bold} onChange={onBold} title="Bold colours" onHint="Solid class colours" offHint="Soft tint" testId="bold-toggle" />
+            </div>
+          )}
           {colors && (
             <div className="mt-3">
               <ColorEditor theme={theme} subjects={subjects} />
@@ -481,7 +506,7 @@ function DayChip({ selected, today, children, onClick }: { selected: boolean; to
       aria-pressed={selected}
       aria-current={today ? "date" : undefined}
       onClick={onClick}
-      className={`day-chip rounded-sm border px-2 py-1 text-xs font-medium ${selected ? "border-transparent bg-foreground text-background" : "border-border bg-background text-foreground hover:bg-muted"} ${today && !selected ? "shadow-[inset_0_-2px_0_var(--foreground)]" : ""}`}
+      className={`day-chip shrink-0 rounded-md px-2 py-1 text-xs ${selected ? "bg-foreground font-medium text-background" : today ? "font-medium text-foreground" : "text-muted-foreground hover:text-foreground"}`}
     >
       {children}
     </button>
@@ -489,19 +514,17 @@ function DayChip({ selected, today, children, onClick }: { selected: boolean; to
 }
 
 function NowLine({ lecture, today, minutes }: { lecture: PublicLecture; today: string; minutes: number }) {
-  const { slotFor } = useColors();
   const live = slotPhase(lecture, today, minutes) === "now";
-  const slot = slotFor(lecture.subject, lecture.displayStatus);
+  const range = formatCompactRange(lecture.startLabel, lecture.endLabel);
+  const when = lecture.date && lecture.date !== today ? `${lecture.weekday.slice(0, 3)} ${range}` : range;
+  const room = lecture.room ? ` · ${shortRoom(lecture.room)}` : "";
   return (
-    <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-      <span className={live ? "font-medium" : "text-muted-foreground"}>{live ? "Now" : "Next"}</span>
-      <span className={`inline-flex items-center gap-1.5 font-medium tracking-tight cal-${slot}`}>
-        {live && <span aria-hidden="true" className="inline-block size-2 shrink-0 rounded-full" style={{ background: "var(--cal)" }} />}
-        {lecture.subject}
-      </span>
-      <span className="text-muted-foreground">
-        {lecture.startLabel}
-        {lecture.room ? ` · ${lecture.room}` : ""}
+    <p className="flex items-baseline gap-2 text-sm" data-testid={live ? "now-banner" : undefined}>
+      <span className={live ? "shrink-0 font-medium" : "shrink-0 text-muted-foreground"}>{live ? "Now" : "Next"}</span>
+      <span className="min-w-0 truncate font-medium tracking-tight">{lecture.subject}</span>
+      <span className="shrink-0 text-muted-foreground">
+        {when}
+        {room}
       </span>
     </p>
   );

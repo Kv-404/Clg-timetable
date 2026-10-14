@@ -17,6 +17,7 @@ const setupKey = "timetable-setup";
 const cohortKey = "timetable-cohort";
 const themeKey = "timetable-theme";
 const colorsKey = "timetable-colors";
+const boldKey = "timetable-bold";
 
 function storageGet(key: string) {
   try {
@@ -57,6 +58,10 @@ export function readStoredColors() {
   return storageGet(colorsKey) !== "0";
 }
 
+export function readStoredBold() {
+  return storageGet(boldKey) === "1";
+}
+
 export function themeMeta(id: ThemeId) {
   return themes.find((theme) => theme.id === id) ?? themes[0]!;
 }
@@ -73,6 +78,11 @@ export function applyTheme(id: ThemeId) {
 export function applyColors(on: boolean) {
   document.documentElement.dataset.colors = on ? "on" : "off";
   storageSet(colorsKey, on ? "1" : "0");
+}
+
+export function applyBold(on: boolean) {
+  document.documentElement.dataset.bold = on ? "on" : "off";
+  storageSet(boldKey, on ? "1" : "0");
 }
 
 export function saveCohort(division: string) {
