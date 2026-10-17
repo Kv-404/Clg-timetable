@@ -44,8 +44,8 @@ function getConfig() {
   const dateOrder = process.env.DATE_ORDER === "MDY" ? "MDY" : "DMY";
   return {
     // One configured id, used only by the sheets client. The sheet is public and read-only.
-    spreadsheetId: process.env.SPREADSHEET_ID?.trim() || "1EfkP6uXq7hjjehptSWfz3Q_duqAqfyOkNdpH23B2ctE",
-    spreadsheetTitle: process.env.SPREADSHEET_TITLE?.trim() || "BTech Cohort Planning weekly | 2025-29 - 12th Oct to 17th Oct 2026",
+    spreadsheetId: process.env.SPREADSHEET_ID?.trim() || "1VgW0dPthBMUux9LV-chWWt8_5MAT42u8fZuJpH4Zhg0",
+    spreadsheetTitle: process.env.SPREADSHEET_TITLE?.trim() || "BTech Cohort Planning weekly | 2025-29 - 19th Oct to 24th Oct 2026",
     collegeName: process.env.COLLEGE_NAME?.trim() || "ITM Skills University",
     schoolName: process.env.SCHOOL_NAME?.trim() || "School of FutureTech, Kharghar",
     courseName: process.env.COURSE_NAME?.trim() || "BTech",
@@ -192,6 +192,64 @@ function insertChanges(db2, drafts) {
     );
   }
 }
+function readAllChanges(db2) {
+  const rows = db2.prepare(`
+    SELECT id, dedupe_key, detected_at, type, lecture_id, division, course, semester, tab_name,
+           date, weekday, summary, previous_json, next_json, fields_json
+    FROM change_events
+    ORDER BY id ASC
+  `).all();
+  return rows.map((row) => ({
+    id: row.id,
+    dedupeKey: row.dedupe_key,
+    detectedAt: row.detected_at,
+    type: row.type,
+    lectureId: row.lecture_id,
+    division: row.division,
+    course: row.course,
+    semester: row.semester,
+    tabName: row.tab_name,
+    date: row.date,
+    weekday: row.weekday,
+    summary: row.summary,
+    previous: row.previous_json ? JSON.parse(row.previous_json) : null,
+    next: row.next_json ? JSON.parse(row.next_json) : null,
+    fields: row.fields_json ? JSON.parse(row.fields_json) : []
+  }));
+}
+function replaceChangeRows(db2, rows) {
+  db2.exec("DELETE FROM change_events");
+  const insert = db2.prepare(`
+    INSERT INTO change_events (
+      id, dedupe_key, detected_at, type, lecture_id, division, course, semester, tab_name,
+      date, weekday, summary, previous_json, next_json, fields_json
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  for (const row of rows) {
+    insert.run(
+      row.id,
+      row.dedupeKey,
+      row.detectedAt,
+      row.type,
+      row.lectureId,
+      row.division,
+      row.course,
+      row.semester,
+      row.tabName,
+      row.date,
+      row.weekday,
+      row.summary,
+      row.previous ? JSON.stringify(row.previous) : null,
+      row.next ? JSON.stringify(row.next) : null,
+      JSON.stringify(row.fields)
+    );
+  }
+  const max = rows.reduce((highest, row) => Math.max(highest, row.id), 0);
+  const updated = db2.prepare("UPDATE sqlite_sequence SET seq = ? WHERE name = 'change_events'").run(max);
+  if (updated.changes === 0 && max > 0) {
+    db2.prepare("INSERT INTO sqlite_sequence (name, seq) VALUES ('change_events', ?)").run(max);
+  }
+}
 function readChanges(db2, limit = 50) {
   const rows = db2.prepare(`
     SELECT id, detected_at, type, lecture_id, division, course, semester, tab_name,
@@ -243,6 +301,7 @@ function loadEnvFiles() {
   if (!import_meta.url) return;
   const here = import_node_path2.default.dirname((0, import_node_url.fileURLToPath)(import_meta.url));
   applyEnvFile(import_node_path2.default.resolve(here, "../../.env"));
+  applyEnvFile(import_node_path2.default.resolve(here, "../../.env.local"));
   applyEnvFile(import_node_path2.default.resolve(here, "../.env"));
 }
 
@@ -448,9 +507,6 @@ function toNormalized(lecture) {
   };
 }
 
-// server/src/services/changeDetectionService.ts
-var import_node_crypto = require("node:crypto");
-
 // server/src/time.ts
 var WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 function canon(value) {
@@ -536,7 +592,100 @@ function zonedParts(date, timeZone) {
   };
 }
 
+// server/src/services/restoreRemoved.ts
+function slotMinutes(id) {
+  const match = /\|(\d+)-(\d+)$/.exec(id);
+  if (!match) return null;
+  return { start: Number(match[1]), end: Number(match[2]) };
+}
+function restoreRemovedLectures(lectures, changes) {
+  const ids = new Set(lectures.map((lecture) => lecture.id));
+  const days = new Set(
+    lectures.filter((lecture) => lecture.kind !== "break" && lecture.date).map((lecture) => `${lecture.tabName}|${lecture.date}`)
+  );
+  const restoredIds = /* @__PURE__ */ new Set();
+  const restored = [];
+  const rewritten = [];
+  for (const change of changes) {
+    if (change.type !== "removed" || !change.lectureId || !change.tabName || !change.date) continue;
+    if (ids.has(change.lectureId) || !days.has(`${change.tabName}|${change.date}`)) continue;
+    const previous = change.previous;
+    const subject = previous?.subject;
+    const minutes = slotMinutes(change.lectureId);
+    if (!subject || !minutes) continue;
+    const sibling = lectures.find((lecture) => lecture.division === change.division) ?? lectures[0];
+    const startLabel = previous.startLabel || formatMinutes(minutes.start);
+    const endLabel = previous.endLabel || formatMinutes(minutes.end);
+    restored.push({
+      id: change.lectureId,
+      slotKey: change.lectureId,
+      tabName: change.tabName,
+      course: change.course || sibling?.course || "",
+      semester: change.semester || sibling?.semester || "",
+      batch: sibling?.batch || "",
+      division: change.division || "",
+      date: change.date,
+      weekday: change.weekday || "",
+      startMinutes: minutes.start,
+      endMinutes: minutes.end,
+      startLabel,
+      endLabel,
+      subject,
+      faculty: previous.faculty || "",
+      room: previous.room || "",
+      kind: "lecture",
+      sourceStatus: "cancelled",
+      reason: "Removed from the official timetable.",
+      explicitMark: "cancelled",
+      recurring: false,
+      anchor: {
+        subject,
+        faculty: previous.faculty || "",
+        room: previous.room || "",
+        startMinutes: minutes.start,
+        endMinutes: minutes.end,
+        startLabel,
+        endLabel,
+        sourceStatus: "scheduled",
+        reason: "",
+        kind: "lecture",
+        explicitMark: null
+      },
+      highlight: {
+        displayStatus: "cancelled",
+        type: "cancelled",
+        summary: `${subject} lecture cancelled.`,
+        detectedAt: change.detectedAt,
+        previous,
+        reason: null
+      }
+    });
+    ids.add(change.lectureId);
+    restoredIds.add(change.lectureId);
+    rewritten.push({ id: change.id, summary: `${subject} lecture cancelled.` });
+  }
+  return { lectures: [...lectures, ...restored], restoredIds, rewritten };
+}
+
+// server/src/services/persistCancelled.ts
+function persistCancelledRemovals(db2) {
+  const restored = restoreRemovedLectures(loadSnapshot(db2), readChanges(db2, 500));
+  if (restored.restoredIds.size === 0) return restored;
+  const update = db2.prepare("UPDATE change_events SET type = 'cancelled', summary = ? WHERE id = ? AND type = 'removed'");
+  db2.exec("BEGIN");
+  try {
+    saveSnapshot(db2, restored.lectures);
+    for (const row of restored.rewritten) update.run(row.summary, row.id);
+    db2.exec("COMMIT");
+  } catch (error) {
+    db2.exec("ROLLBACK");
+    throw error;
+  }
+  return restored;
+}
+
 // server/src/services/changeDetectionService.ts
+var import_node_crypto = require("node:crypto");
 function coreOf(lecture) {
   return {
     subject: canon(lecture.subject),
@@ -875,6 +1024,33 @@ function compareSnapshots(previous, next, options) {
   }
   for (const lecture of unmatchedPrevious) {
     if (usedRemoved.has(lecture.id) || lecture.kind === "break") continue;
+    const dayRemains = next.some((item) => item.tabName === lecture.tabName && item.date === lecture.date && item.kind !== "break");
+    if (dayRemains && lecture.kind === "lecture") {
+      const summary2 = `${lecture.subject} lecture cancelled.`;
+      const fields = ["subject", "time", "room", "faculty", "status"];
+      const already = lecture.sourceStatus === "cancelled";
+      if (!already) {
+        events.push(draft({
+          ...contextOf(lecture),
+          detectedAt,
+          type: "cancelled",
+          summary: summary2,
+          previous: previousOf(coreOf(lecture), fields),
+          next: null,
+          fields: ["status"],
+          dedupeParts: [lecture.id, "cancelled", coreOf(lecture)]
+        }));
+      }
+      output.push({
+        ...lecture,
+        sourceStatus: "cancelled",
+        explicitMark: "cancelled",
+        reason: lecture.reason || "Removed from the official timetable.",
+        anchor: lecture.anchor,
+        highlight: already && lecture.highlight?.displayStatus === "cancelled" ? lecture.highlight : highlightFor("cancelled", "cancelled", summary2, detectedAt, previousOf(coreOf(lecture), fields), lecture.reason)
+      });
+      continue;
+    }
     const summary = `${lecture.subject} at ${rangeLabel(lecture)} is no longer listed. It was not marked cancelled.`;
     events.push(draft({
       ...contextOf(lecture),
@@ -1447,8 +1623,134 @@ async function parseTimetableSource(source, options = {}) {
   };
 }
 
+// server/src/services/durableState.ts
+var import_blob = require("@vercel/blob");
+
+// server/src/services/timetableArchive.ts
+function archiveSignature(archive) {
+  const lectures = archive.lectures.map((lecture) => `${lecture.id}	${lecture.sourceStatus}	${lecture.subject}	${lecture.faculty}	${lecture.room}	${lecture.startMinutes}`).sort().join("\n");
+  const changes = archive.changes.map((change) => `${change.dedupeKey}	${change.type}	${change.summary}`).sort().join("\n");
+  return `${archive.sync.contentHash ?? ""}
+${lectures}
+${changes}`;
+}
+function dayKey(lecture) {
+  return `${lecture.tabName}|${lecture.date ?? ""}`;
+}
+function mergeArchives(left, right) {
+  const leftAt = left.sync.lastSuccessAt ?? "";
+  const rightAt = right.sync.lastSuccessAt ?? "";
+  const newer = rightAt >= leftAt ? right : left;
+  const older = newer === right ? left : right;
+  const ids = new Set(newer.lectures.map((lecture) => lecture.id));
+  const days = new Set(newer.lectures.filter((lecture) => lecture.kind !== "break" && lecture.date).map(dayKey));
+  const kept = older.lectures.filter(
+    (lecture) => lecture.kind === "lecture" && lecture.sourceStatus === "cancelled" && !ids.has(lecture.id) && days.has(dayKey(lecture))
+  );
+  const changes = /* @__PURE__ */ new Map();
+  for (const change of newer.changes) changes.set(change.dedupeKey, change);
+  for (const change of older.changes) {
+    const current = changes.get(change.dedupeKey);
+    if (!current) {
+      changes.set(change.dedupeKey, change);
+      continue;
+    }
+    if (current.type === "removed" && change.type === "cancelled") {
+      changes.set(change.dedupeKey, { ...change, id: current.id });
+    }
+  }
+  return {
+    version: 1,
+    savedAt: newer.savedAt >= older.savedAt ? newer.savedAt : older.savedAt,
+    lectures: [...newer.lectures, ...kept],
+    changes: [...changes.values()],
+    sync: newer.sync
+  };
+}
+
+// server/src/services/durableState.ts
+var pathname = "timetable-state.json";
+var lastSignature = "";
+function blobToken() {
+  return process.env.BLOB_READ_WRITE_TOKEN?.trim() || "";
+}
+function exportArchive(db2) {
+  return {
+    version: 1,
+    savedAt: (/* @__PURE__ */ new Date()).toISOString(),
+    lectures: readLectures(db2),
+    changes: readAllChanges(db2),
+    sync: readSyncState(db2)
+  };
+}
+function importArchive(db2, archive) {
+  db2.exec("BEGIN");
+  try {
+    replaceLectures(db2, archive.lectures);
+    replaceChangeRows(db2, archive.changes);
+    writeSyncState(db2, { ...archive.sync, bootstrapped: true });
+    db2.exec("COMMIT");
+  } catch (error) {
+    db2.exec("ROLLBACK");
+    throw error;
+  }
+}
+function isArchive(value) {
+  if (!value || typeof value !== "object") return false;
+  const archive = value;
+  return archive.version === 1 && Array.isArray(archive.lectures) && Array.isArray(archive.changes) && Boolean(archive.sync);
+}
+async function readRemote() {
+  const result = await (0, import_blob.get)(pathname, { access: "private", token: blobToken() });
+  if (!result || result.statusCode !== 200 || !result.stream) return null;
+  const parsed = JSON.parse(await new Response(result.stream).text());
+  return isArchive(parsed) ? parsed : null;
+}
+async function hydrateArchive(db2) {
+  if (!blobToken() || readSyncState(db2).bootstrapped) return false;
+  const archive = await readRemote();
+  if (!archive?.sync.bootstrapped) return false;
+  importArchive(db2, archive);
+  lastSignature = archiveSignature(archive);
+  console.log("[sync] loaded saved timetable history");
+  return true;
+}
+async function publishArchive(db2) {
+  if (!blobToken() || !readSyncState(db2).bootstrapped) return false;
+  const local = exportArchive(db2);
+  if (archiveSignature(local) === lastSignature) return false;
+  const remote = await readRemote();
+  const merged = remote ? mergeArchives(remote, local) : local;
+  if (archiveSignature(merged) !== archiveSignature(local)) importArchive(db2, merged);
+  const signature = archiveSignature(merged);
+  if (remote && signature === archiveSignature(remote)) {
+    lastSignature = signature;
+    return false;
+  }
+  merged.savedAt = (/* @__PURE__ */ new Date()).toISOString();
+  await (0, import_blob.put)(pathname, JSON.stringify(merged), {
+    access: "private",
+    addRandomSuffix: false,
+    allowOverwrite: true,
+    contentType: "application/json",
+    token: blobToken()
+  });
+  lastSignature = signature;
+  console.log("[sync] saved timetable history");
+  return true;
+}
+
 // server/src/services/syncScheduler.ts
 var inflight = /* @__PURE__ */ new WeakMap();
+function replacesPublishedWeek(previous, next) {
+  const previousDates = new Set(previous.map((lecture) => lecture.date).filter((date) => Boolean(date)));
+  const nextDates = new Set(next.map((lecture) => lecture.date).filter((date) => Boolean(date)));
+  if (previousDates.size === 0 || nextDates.size === 0) return false;
+  for (const date of nextDates) {
+    if (previousDates.has(date)) return false;
+  }
+  return true;
+}
 function withCarriedTabs(previous, lectures, issues) {
   const counts = /* @__PURE__ */ new Map();
   for (const lecture of lectures) counts.set(lecture.tabName, (counts.get(lecture.tabName) ?? 0) + 1);
@@ -1471,20 +1773,24 @@ function withCarriedTabs(previous, lectures, issues) {
 async function performSync(ctx) {
   const now = ctx.now ?? /* @__PURE__ */ new Date();
   const attemptAt = now.toISOString();
-  const current = readSyncState(ctx.db);
   try {
+    await hydrateArchive(ctx.db);
+    const current = readSyncState(ctx.db);
     const { buffer } = await ctx.load();
     const parsed = await parseTimetableSource(buffer, { dateOrder: ctx.config.dateOrder });
     const normalized = normalizeWorkbook(parsed, { courseFallback: ctx.config.courseName });
+    persistCancelledRemovals(ctx.db);
     const previous = loadSnapshot(ctx.db);
     const retained = withCarriedTabs(previous, normalized.lectures, normalized.issues);
     const tabNames = parsed.tabs.map((tab) => tab.name);
     const contentHash = contentFingerprint(retained.lectures, tabNames, retained.issues);
     if (current.bootstrapped && current.contentHash === contentHash) {
       writeSyncState(ctx.db, successState(current, attemptAt, contentHash, tabNames, retained.issues, ctx.config.spreadsheetTitle));
+      await publishArchive(ctx.db);
       return { ok: true, unchanged: true, changeCount: 0, error: null };
     }
-    const stored = current.bootstrapped ? compareSnapshots(previous, retained.lectures, {
+    const freshWeek = current.bootstrapped && replacesPublishedWeek(previous, retained.lectures);
+    const stored = current.bootstrapped && !freshWeek ? compareSnapshots(previous, retained.lectures, {
       now,
       previousTabs: current.tabNames,
       nextTabs: tabNames,
@@ -1492,6 +1798,7 @@ async function performSync(ctx) {
     }) : { lectures: initialSnapshot(retained.lectures), events: [] };
     ctx.db.exec("BEGIN");
     try {
+      if (freshWeek) replaceChangeRows(ctx.db, []);
       saveSnapshot(ctx.db, stored.lectures);
       recordChanges(ctx.db, stored.events);
       writeSyncState(ctx.db, {
@@ -1503,6 +1810,7 @@ async function performSync(ctx) {
       ctx.db.exec("ROLLBACK");
       throw error;
     }
+    await publishArchive(ctx.db);
     return { ok: true, unchanged: false, changeCount: stored.events.length, error: null };
   } catch (error) {
     const message = error instanceof Error ? error.message : "The spreadsheet could not be read.";
@@ -1541,7 +1849,10 @@ var import_meta2 = {};
 function buildBootstrap(db2, config2, now = /* @__PURE__ */ new Date()) {
   const state = readSyncState(db2);
   const zone = zonedParts(now, config2.timezone);
-  const lectures = loadSnapshot(db2).map((lecture) => presentLecture(lecture, now, config2.highlightHours)).sort((a, b) => {
+  persistCancelledRemovals(db2);
+  const changes = listChanges(db2, 80);
+  const restored = restoreRemovedLectures(loadSnapshot(db2), changes);
+  const lectures = restored.lectures.map((lecture) => presentLecture(lecture, now, config2.highlightHours)).sort((a, b) => {
     const date = (a.date ?? "").localeCompare(b.date ?? "");
     if (date !== 0) return date;
     if (a.startMinutes !== b.startMinutes) return a.startMinutes - b.startMinutes;
@@ -1576,7 +1887,11 @@ function buildBootstrap(db2, config2, now = /* @__PURE__ */ new Date()) {
     },
     parseIssues: state.parseIssues,
     lectures,
-    changes: listChanges(db2, 80)
+    changes: changes.map((change) => {
+      if (!change.lectureId || !restored.restoredIds.has(change.lectureId) || change.type !== "removed") return change;
+      const subject = change.previous?.subject || "A lecture";
+      return { ...change, type: "cancelled", summary: `${subject} lecture cancelled.` };
+    })
   };
 }
 function createApp(db2, config2, load, options) {

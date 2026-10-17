@@ -1,8 +1,8 @@
 import type { ParseIssue } from "../../../shared/types.ts";
 import type { AppConfig } from "../config.ts";
 import type { AppDatabase, SyncState } from "../db.ts";
-import { readSyncState, writeSyncState } from "../db.ts";
-import type { NormalizedLecture } from "../model.ts";
+import { readSyncState, replaceChangeRows, writeSyncState } from "../db.ts";
+import type { NormalizedLecture, StoredLecture } from "../model.ts";
 import { compareSnapshots, initialSnapshot } from "./changeDetectionService.ts";
 import { recordChanges } from "./changeHistoryService.ts";
 import { contentFingerprint, normalizeWorkbook } from "./timetableNormalizer.ts";
@@ -26,6 +26,17 @@ export interface SyncOutcome {
 }
 
 const inflight = new WeakMap<AppDatabase, Promise<SyncOutcome>>();
+
+/** A new weekly sheet has a different set of dates. That is a new baseline, not an edit of last week. */
+function replacesPublishedWeek(previous: StoredLecture[], next: NormalizedLecture[]) {
+  const previousDates = new Set(previous.map((lecture) => lecture.date).filter((date): date is string => Boolean(date)));
+  const nextDates = new Set(next.map((lecture) => lecture.date).filter((date): date is string => Boolean(date)));
+  if (previousDates.size === 0 || nextDates.size === 0) return false;
+  for (const date of nextDates) {
+    if (previousDates.has(date)) return false;
+  }
+  return true;
+}
 
 function withCarriedTabs(previous: ReturnType<typeof loadSnapshot>, lectures: NormalizedLecture[], issues: ParseIssue[]) {
   const counts = new Map<string, number>();
@@ -68,7 +79,8 @@ async function performSync(ctx: SyncContext): Promise<SyncOutcome> {
       return { ok: true, unchanged: true, changeCount: 0, error: null };
     }
 
-    const stored = current.bootstrapped
+    const freshWeek = current.bootstrapped && replacesPublishedWeek(previous, retained.lectures);
+    const stored = current.bootstrapped && !freshWeek
       ? compareSnapshots(previous, retained.lectures, {
           now,
           previousTabs: current.tabNames,
@@ -79,6 +91,7 @@ async function performSync(ctx: SyncContext): Promise<SyncOutcome> {
 
     ctx.db.exec("BEGIN");
     try {
+      if (freshWeek) replaceChangeRows(ctx.db, []);
       saveSnapshot(ctx.db, stored.lectures);
       recordChanges(ctx.db, stored.events);
       writeSyncState(ctx.db, {

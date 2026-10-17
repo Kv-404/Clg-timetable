@@ -105,4 +105,41 @@ describe("sync", () => {
     assert.equal(java?.division, "BCA-A");
     assert.equal(java?.weekday, "Wednesday");
   });
+
+  it("starts a fresh baseline when the sheet moves to a new week", async () => {
+    const db = openDatabase(":memory:");
+    const before = await workbookBuffer(() => undefined);
+    await runSync(context(db, [before]));
+    const edited = await workbookBuffer((sheet) => {
+      sheet.getCell("B6").value = "Classroom - 40";
+    });
+    const changed = await runSync(context(db, [edited]));
+    assert.equal(changed.changeCount, 1);
+    assert.equal(readChanges(db).length, 1);
+
+    const after = await workbookBuffer((sheet) => {
+      sheet.getCell("A2").value = "20/10/2026 (Tuesday)";
+      sheet.getCell("B4").value = "Machine Learning Fundamentals";
+      sheet.getCell("B6").value = "Classroom - 4";
+    });
+    const rolled = await runSync(context(db, [after]));
+    assert.equal(rolled.ok, true);
+    assert.equal(rolled.changeCount, 0);
+    assert.equal(readChanges(db).length, 0);
+    const lectures = readLectures(db);
+    assert.equal(lectures.length, 1);
+    assert.equal(lectures[0]?.date, "2026-10-20");
+    assert.equal(lectures[0]?.subject, "Machine Learning Fundamentals");
+    assert.equal(lectures[0]?.room, "Classroom - 4");
+
+    const tweak = await workbookBuffer((sheet) => {
+      sheet.getCell("A2").value = "20/10/2026 (Tuesday)";
+      sheet.getCell("B4").value = "Machine Learning Fundamentals";
+      sheet.getCell("B6").value = "Classroom - 9";
+    });
+    const next = await runSync(context(db, [tweak]));
+    assert.equal(next.changeCount, 1);
+    assert.equal(readChanges(db)[0]?.type, "room_change");
+    assert.equal(readLectures(db)[0]?.date, "2026-10-20");
+  });
 });

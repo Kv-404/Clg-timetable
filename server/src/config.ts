@@ -25,10 +25,10 @@ export function getConfig(): AppConfig {
     // One configured id, used only by the sheets client. The sheet is public and read-only.
     spreadsheetId:
       process.env.SPREADSHEET_ID?.trim() ||
-      "1EfkP6uXq7hjjehptSWfz3Q_duqAqfyOkNdpH23B2ctE",
+      "1VgW0dPthBMUux9LV-chWWt8_5MAT42u8fZuJpH4Zhg0",
     spreadsheetTitle:
       process.env.SPREADSHEET_TITLE?.trim() ||
-      "BTech Cohort Planning weekly | 2025-29 - 12th Oct to 17th Oct 2026",
+      "BTech Cohort Planning weekly | 2025-29 - 19th Oct to 24th Oct 2026",
     collegeName: process.env.COLLEGE_NAME?.trim() || "ITM Skills University",
     schoolName: process.env.SCHOOL_NAME?.trim() || "School of FutureTech, Kharghar",
     courseName: process.env.COURSE_NAME?.trim() || "BTech",
