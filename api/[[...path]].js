@@ -1637,19 +1637,35 @@ ${changes}`;
 function dayKey(lecture) {
   return `${lecture.tabName}|${lecture.date ?? ""}`;
 }
+function publishedDates(archive) {
+  return new Set(archive.lectures.map((lecture) => lecture.date).filter((date) => Boolean(date)));
+}
 function mergeArchives(left, right) {
   const leftAt = left.sync.lastSuccessAt ?? "";
   const rightAt = right.sync.lastSuccessAt ?? "";
   const newer = rightAt >= leftAt ? right : left;
   const older = newer === right ? left : right;
+  const newerDates = publishedDates(newer);
+  const olderDates = publishedDates(older);
+  const sameWeek = newerDates.size === 0 || olderDates.size === 0 || [...newerDates].some((date) => olderDates.has(date));
+  if (!sameWeek) {
+    return {
+      ...newer,
+      changes: newer.changes.filter((change) => !change.date || newerDates.has(change.date))
+    };
+  }
   const ids = new Set(newer.lectures.map((lecture) => lecture.id));
   const days = new Set(newer.lectures.filter((lecture) => lecture.kind !== "break" && lecture.date).map(dayKey));
   const kept = older.lectures.filter(
     (lecture) => lecture.kind === "lecture" && lecture.sourceStatus === "cancelled" && !ids.has(lecture.id) && days.has(dayKey(lecture))
   );
   const changes = /* @__PURE__ */ new Map();
-  for (const change of newer.changes) changes.set(change.dedupeKey, change);
+  const keep = (change) => newerDates.size === 0 || !change.date || newerDates.has(change.date);
+  for (const change of newer.changes) {
+    if (keep(change)) changes.set(change.dedupeKey, change);
+  }
   for (const change of older.changes) {
+    if (!keep(change)) continue;
     const current = changes.get(change.dedupeKey);
     if (!current) {
       changes.set(change.dedupeKey, change);
@@ -1742,6 +1758,14 @@ async function publishArchive(db2) {
 
 // server/src/services/syncScheduler.ts
 var inflight = /* @__PURE__ */ new WeakMap();
+function dropChangesFromOtherWeeks(db2, lectures) {
+  const dates = new Set(lectures.map((lecture) => lecture.date).filter((date) => Boolean(date)));
+  if (dates.size === 0) return;
+  const changes = readAllChanges(db2);
+  const kept = changes.filter((change) => !change.date || dates.has(change.date));
+  if (kept.length === changes.length) return;
+  replaceChangeRows(db2, kept);
+}
 function replacesPublishedWeek(previous, next) {
   const previousDates = new Set(previous.map((lecture) => lecture.date).filter((date) => Boolean(date)));
   const nextDates = new Set(next.map((lecture) => lecture.date).filter((date) => Boolean(date)));
@@ -1784,6 +1808,7 @@ async function performSync(ctx) {
     const retained = withCarriedTabs(previous, normalized.lectures, normalized.issues);
     const tabNames = parsed.tabs.map((tab) => tab.name);
     const contentHash = contentFingerprint(retained.lectures, tabNames, retained.issues);
+    dropChangesFromOtherWeeks(ctx.db, retained.lectures);
     if (current.bootstrapped && current.contentHash === contentHash) {
       writeSyncState(ctx.db, successState(current, attemptAt, contentHash, tabNames, retained.issues, ctx.config.spreadsheetTitle));
       await publishArchive(ctx.db);

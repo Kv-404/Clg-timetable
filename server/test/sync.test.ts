@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import ExcelJS from "exceljs";
-import { openDatabase, readChanges, readLectures, readSyncState } from "../src/db.ts";
+import { openDatabase, readChanges, readLectures, readSyncState, replaceChangeRows } from "../src/db.ts";
 import { runSync } from "../src/services/syncScheduler.ts";
 
 async function workbookBuffer(fill: (sheet: ExcelJS.Worksheet) => void) {
@@ -141,5 +141,34 @@ describe("sync", () => {
     assert.equal(next.changeCount, 1);
     assert.equal(readChanges(db)[0]?.type, "room_change");
     assert.equal(readLectures(db)[0]?.date, "2026-10-20");
+  });
+
+  it("removes change history from a week the sheet no longer publishes", async () => {
+    const db = openDatabase(":memory:");
+    const sheet = await workbookBuffer(() => undefined);
+    await runSync(context(db, [sheet]));
+    replaceChangeRows(db, [
+      {
+        id: 8,
+        dedupeKey: "old-week",
+        detectedAt: "2026-10-10T01:00:00.000Z",
+        type: "faculty_change",
+        lectureId: "old",
+        division: "Sam Altman 2025",
+        course: "BTech",
+        semester: "3",
+        tabName: "Tuesday",
+        date: "2026-10-06",
+        weekday: "Tuesday",
+        summary: "Faculty changed.",
+        previous: null,
+        next: null,
+        fields: ["faculty"],
+      },
+    ]);
+    const again = await runSync(context(db, [sheet]));
+    assert.equal(again.ok, true);
+    assert.equal(readChanges(db).some((change) => change.date === "2026-10-06"), false);
+    assert.equal(readLectures(db)[0]?.date, "2026-10-13");
   });
 });

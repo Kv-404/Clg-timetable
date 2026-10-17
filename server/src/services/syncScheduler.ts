@@ -1,7 +1,7 @@
 import type { ParseIssue } from "../../../shared/types.ts";
 import type { AppConfig } from "../config.ts";
 import type { AppDatabase, SyncState } from "../db.ts";
-import { readSyncState, replaceChangeRows, writeSyncState } from "../db.ts";
+import { readAllChanges, readSyncState, replaceChangeRows, writeSyncState } from "../db.ts";
 import type { NormalizedLecture, StoredLecture } from "../model.ts";
 import { compareSnapshots, initialSnapshot } from "./changeDetectionService.ts";
 import { recordChanges } from "./changeHistoryService.ts";
@@ -26,6 +26,15 @@ export interface SyncOutcome {
 }
 
 const inflight = new WeakMap<AppDatabase, Promise<SyncOutcome>>();
+
+function dropChangesFromOtherWeeks(db: AppDatabase, lectures: NormalizedLecture[]) {
+  const dates = new Set(lectures.map((lecture) => lecture.date).filter((date): date is string => Boolean(date)));
+  if (dates.size === 0) return;
+  const changes = readAllChanges(db);
+  const kept = changes.filter((change) => !change.date || dates.has(change.date));
+  if (kept.length === changes.length) return;
+  replaceChangeRows(db, kept);
+}
 
 /** A new weekly sheet has a different set of dates. That is a new baseline, not an edit of last week. */
 function replacesPublishedWeek(previous: StoredLecture[], next: NormalizedLecture[]) {
@@ -72,6 +81,7 @@ async function performSync(ctx: SyncContext): Promise<SyncOutcome> {
     const retained = withCarriedTabs(previous, normalized.lectures, normalized.issues);
     const tabNames = parsed.tabs.map((tab) => tab.name);
     const contentHash = contentFingerprint(retained.lectures, tabNames, retained.issues);
+    dropChangesFromOtherWeeks(ctx.db, retained.lectures);
 
     if (current.bootstrapped && current.contentHash === contentHash) {
       writeSyncState(ctx.db, successState(current, attemptAt, contentHash, tabNames, retained.issues, ctx.config.spreadsheetTitle));

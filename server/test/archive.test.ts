@@ -89,6 +89,61 @@ describe("timetable archive", () => {
     assert.deepEqual(merged.lectures.map((item) => item.id), ["stays"]);
   });
 
+  it("drops last week's change log when the saved week does not overlap", () => {
+    const older = archive([lecture("old", { date: "2026-10-16" })], "2026-10-16T01:00:00.000Z", "2026-10-16T01:00:00.000Z");
+    older.changes = [
+      {
+        id: 9,
+        dedupeKey: "old|cancelled",
+        detectedAt: "2026-10-16T01:00:00.000Z",
+        type: "cancelled",
+        lectureId: "old",
+        division: "Demis Hassabis 2025",
+        course: "BTech",
+        semester: "3",
+        tabName: "Wednesday",
+        date: "2026-10-16",
+        weekday: "Friday",
+        summary: "Interactive Session lecture cancelled.",
+        previous: null,
+        next: null,
+        fields: ["status"],
+      },
+    ];
+    const newer = archive([lecture("next", { date: "2026-10-23" })], "2026-10-19T02:00:00.000Z", "2026-10-19T02:00:00.000Z");
+    const merged = mergeArchives(older, newer);
+    assert.deepEqual(merged.lectures.map((item) => item.id), ["next"]);
+    assert.equal(merged.changes.length, 0);
+    assert.equal(merged.sync.contentHash, newer.sync.contentHash);
+  });
+
+  it("drops a change whose date is no longer on the published week", () => {
+    const current = archive([lecture("next", { date: "2026-10-23" })], "2026-10-19T02:00:00.000Z", "2026-10-19T02:00:00.000Z");
+    const saved = archive([lecture("next", { date: "2026-10-23" })], "2026-10-19T01:00:00.000Z", "2026-10-19T01:00:00.000Z");
+    saved.changes = [
+      {
+        id: 3,
+        dedupeKey: "old|faculty",
+        detectedAt: "2026-10-16T01:00:00.000Z",
+        type: "faculty_change",
+        lectureId: "old",
+        division: "Demis Hassabis 2025",
+        course: "BTech",
+        semester: "3",
+        tabName: "Friday",
+        date: "2026-10-16",
+        weekday: "Friday",
+        summary: "Faculty changed.",
+        previous: null,
+        next: null,
+        fields: ["faculty"],
+      },
+    ];
+    const merged = mergeArchives(saved, current);
+    assert.equal(merged.changes.length, 0);
+    assert.equal(merged.lectures[0]?.id, "next");
+  });
+
   it("round-trips the saved lectures and change log", () => {
     const source = openDatabase(":memory:");
     const cancelled = lecture("gone", { sourceStatus: "cancelled", explicitMark: "cancelled" });
